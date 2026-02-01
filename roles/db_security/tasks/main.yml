@@ -1,0 +1,100 @@
+---
+# tasks file for db_security
+---
+- name: "[DB-01] 불필요한 DB 계정 제거"
+  community.mysql.mysql_user:
+    name: "{{ item }}"
+    state: absent
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  loop: "{{ db_unnecessary_users }}"
+
+- name: "[DB-02] 패스워드 복잡도 강제 적용 (8자리/MEDIUM)"
+  block:
+    - name: "[DB-02-1] 컴포넌트 설치"
+      community.mysql.mysql_query:
+        query: "INSTALL COMPONENT 'file://component_validate_password';"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+      ignore_errors: yes
+
+    - name: "[DB-02-2] 복잡도 정책 설정 (가이드 준수)"
+      lineinfile:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+        regexp: "^{{ item.key }}="
+        line: "{{ item.key }}={{ item.value }}"
+        insertafter: "\[mysqld\]"
+      loop:
+        - { key: 'validate_password.length', value: '8' }
+        - { key: 'validate_password.policy', value: 'MEDIUM' }
+        - { key: 'validate_password.mixed_case_count', value: '1' }
+        - { key: 'validate_password.number_count', value: '1' }
+        - { key: 'validate_password.special_char_count', value: '1' }
+      notify: restart mysql
+
+- name: "[DB-03] 불필요한 GRANT OPTION 권한 회수"
+  community.mysql.mysql_query:
+    query: "REVOKE GRANT OPTION ON *.* FROM '{{ item.user }}'@'{{ item.host }}';"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  loop: "{{ db_revoke_grant_users }}"
+
+- name: "[DB-04] 일반 사용자의 mysql.user 테이블 권한 제거"
+  community.mysql.mysql_query:
+    query: "REVOKE ALL PRIVILEGES ON mysql.* FROM '{{ item.user }}'@'{{ item.host }}'"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  loop: "{{ db_restrict_table_access_users }}"
+
+- name: "[DB-05] MySQL root 구동 제한 (mysql 계정 사용)"
+  lineinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    regexp: "^user ="
+    line: "user = mysql"
+  notify: restart mysql
+
+- name: "[DB-06] 환경설정 파일 접근 권한 변경 (640)"
+  file:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    owner: mysql
+    group: mysql
+    mode: '0640'
+
+- name: "[DB-07] 안전한 패스워드 암호화 알고리즘 적용 (SHA-256)"
+  community.mysql.mysql_user:
+    name: "{{ item.user }}"
+    host: "{{ item.host }}"
+    password: "{{ item.password }}"
+    plugin: "caching_sha2_password"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    state: present
+  loop: "{{ db_sha2_target_users }}"
+
+- name: "[DB-08] 로그 활성화 및 경로 설정"
+  block:
+    - name: "[DB-08-1] 로그 매개변수 반영"
+      lineinfile:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+        regexp: "^{{ item.key }}\\s*="
+        line: "{{ item.key }} = {{ item.value }}"
+        insertafter: "\[mysqld\]"
+      loop:
+        - { key: 'general_log', value: '1' }
+        - { key: 'general_log_file', value: "{{ db_log_path_general }}" }
+        - { key: 'slow_query_log', value: '1' }
+        - { key: 'slow_query_log_file', value: "{{ db_log_path_slow }}" }
+        - { key: 'long_query_time', value: '2' }
+      notify: restart mysql
+
+    - name: "[DB-08-2] 로그 파일 권한 설정"
+      file:
+        path: "{{ item }}"
+        state: touch
+        owner: mysql
+        group: adm
+        mode: '0640'
+      loop:
+        - "{{ db_log_path_general }}"
+        - "{{ db_log_path_slow }}"
+
+- name: "[DB-09] 최신 보안 패치 적용"
+  apt:
+    name: mysql-server
+    state: latest
+    update_cache: yes

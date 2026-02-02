@@ -1,0 +1,10 @@
+- name: Test security roles
+  hosts: all
+  become: true
+  vars:
+    security_mode: "audit"
+    security_fail_on_violation: false
+  roles:
+    - account_security
+    - config_security
+

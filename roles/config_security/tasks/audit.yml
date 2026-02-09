@@ -1,0 +1,64 @@
+
+- name: Skip audits if disabled
+  ansible.builtin.meta: end_play
+  when: not (os_security_audit_enabled | bool)
+
+- name: Scan for unowned files/dirs (-nouser or -nogroup)
+  ansible.builtin.shell: |
+    set -o pipefail
+    find / -xdev \( -path /proc -o -path /sys -o -path /run \) -prune -o \
+      \( -nouser -o -nogroup \) -print 2>/dev/null | head -n 2000
+  args:
+    executable: /bin/bash
+  register: audit_unowned
+  changed_when: false
+  become: true
+
+- name: Scan for world-writable files
+  ansible.builtin.shell: |
+    set -o pipefail
+    find / -xdev \( -path /proc -o -path /sys -o -path /run \) -prune -o \
+      -type f -perm -0002 -print 2>/dev/null | head -n 2000
+  args:
+    executable: /bin/bash
+  register: audit_world_writable
+  changed_when: false
+  become: true
+
+- name: Scan for SUID/SGID files
+  ansible.builtin.shell: |
+    set -o pipefail
+    find / -xdev \( -path /proc -o -path /sys -o -path /run \) -prune -o \
+      -type f \( -perm -4000 -o -perm -2000 \) -print 2>/dev/null | head -n 2000
+  args:
+    executable: /bin/bash
+  register: audit_suid_sgid
+  changed_when: false
+  become: true
+
+- name: Write audit results to log
+  ansible.builtin.copy:
+    dest: "{{ os_security_audit_log_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [os-security audit]
+      === unowned (nouser/nogroup) ===
+      {{ audit_unowned.stdout | default('') }}
+
+      === world-writable files ===
+      {{ audit_world_writable.stdout | default('') }}
+
+      === suid/sgid files ===
+      {{ audit_suid_sgid.stdout | default('') }}
+  become: true
+
+- name: Fail if audit findings exist (optional)
+  ansible.builtin.fail:
+    msg: "Audit findings detected. Check {{ os_security_audit_log_path }}"
+  when:
+    - os_security_fail_on_audit_findings | bool
+    - (audit_unowned.stdout | length) > 0 or (audit_world_writable.stdout | length) > 0
+  become: true
+

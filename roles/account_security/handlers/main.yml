@@ -1,5 +1,15 @@
-- name: restart sshd
+- name: restart ssh
   ansible.builtin.service:
-    name: "{{ 'sshd' if ansible_os_family == 'RedHat' else 'ssh' }}"
+    name: ssh
     state: restarted
 
+- name: restart rsyslog
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted
+
+- name: restart systemd-timesyncd
+  ansible.builtin.service:
+    name: systemd-timesyncd
+    state: restarted
+#

@@ -1,0 +1,18 @@
+---
+# KVM 호스트 계정 감시 설정
+
+kvm_account_audit:
+  # 미사용 계정 감지 임계값 (일)
+  inactivity_threshold_days: 30
+  
+  # 사용제한 권고 임계값 (일)
+  restriction_threshold_days: 60
+  
+  # 보고서 및 스크립트 저장 경로
+  report_dir: "/tmp/kvm_audit_reports"
+  
+  # KVM 제어 계정 대상 그룹
+  target_groups:
+    - kvm
+    - qemu
+    - libvirt

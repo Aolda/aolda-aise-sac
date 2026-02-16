@@ -2,9 +2,14 @@
   hosts: all
   become: true
   vars:
-    security_mode: "audit"
+    security_mode: "audit"   # harden | audit - harden: (account_security, config_security)적용, audit: 점검(수정 없음)
     security_fail_on_violation: false
-  roles:
-    - account_security
-    - config_security
 
+  roles:
+    - role: account_security
+      when: security_mode == "harden"
+
+    - role: config_security
+      when: security_mode == "harden"
+
+    - role: audit

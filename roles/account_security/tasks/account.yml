@@ -1,0 +1,156 @@
+- name: Ensure required packages for account security are installed
+  ansible.builtin.apt:
+    name:
+      - openssh-server
+      - libpam-pwquality
+    state: present
+    update_cache: true
+  become: true
+  
+# 1) root 계정 원격 접속 제한 (체크리스트: PermitRootLogin no)
+- name: Disable SSH root login (PermitRootLogin no)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?\s*PermitRootLogin\s+'
+    line: 'PermitRootLogin no'
+    backup: true
+    validate: 'sshd -t -f %s'
+  become: true
+  when: os_security_disable_ssh_root_login | bool
+  notify: restart ssh
+
+#2) 패스워드 복잡도 설정 (체크리스트: /etc/pam.d/common-password + enforce_for_root)  
+- name: Ensure pam_pwquality is enforced in common-password
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    regexp: '^password\s+requisite\s+pam_pwquality\.so\b.*'
+    line: >-
+      password requisite pam_pwquality.so
+      retry={{ os_security_pw_retry }}
+      minlen={{ os_security_pw_minlen }}
+      ucredit={{ os_security_pw_ucredit }}
+      lcredit={{ os_security_pw_lcredit }}
+      dcredit={{ os_security_pw_dcredit }}
+      ocredit={{ os_security_pw_ocredit }}
+      {{ 'enforce_for_root' if os_security_pw_enforce_for_root else '' }}
+    insertbefore: '^password\s+.*pam_unix\.so\b.*'
+    backup: true
+  become: true
+
+# 3) 계정 잠금 임계값 설정 (체크리스트: /etc/pam.d/common-auth)
+#   - pam_faillock 모듈 존재할 때만 적용 (없으면 인증 깨질 수 있어서 가드)
+
+- name: Check pam_faillock module exists (common Ubuntu paths)
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /lib/security/pam_faillock.so
+    - /lib/x86_64-linux-gnu/security/pam_faillock.so
+    - /usr/lib/security/pam_faillock.so
+    - /usr/lib/x86_64-linux-gnu/security/pam_faillock.so
+  register: _faillock_stats
+  become: true
+
+- name: Set fact - pam_faillock present
+  ansible.builtin.set_fact:
+    os_security_pam_faillock_present: "{{ (_faillock_stats.results | selectattr('stat.exists','equalto',true) | list | length) > 0 }}"
+
+- name: Configure /etc/security/faillock.conf (deny/unlock_time)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^{{ item.key }}\s*='
+    line: '{{ item.key }} = {{ item.value }}'
+    create: true
+    backup: true
+  loop:
+    - { key: "deny", value: "{{ os_security_lockout_deny }}" }
+    - { key: "unlock_time", value: "{{ os_security_lockout_unlock_time }}" }
+  become: true
+  when:
+    - os_security_lockout_enabled | bool
+    - os_security_pam_faillock_present | bool
+
+- name: Add pam_faillock preauth line to /etc/pam.d/common-auth (BOF)
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    regexp: '^auth\s+required\s+pam_faillock\.so\s+preauth\b.*'
+    line: >-
+      auth required pam_faillock.so preauth silent
+    insertbefore: BOF
+    backup: true
+  become: true
+  when:
+    - os_security_lockout_enabled | bool
+    - os_security_pam_faillock_present | bool
+
+- name: Add pam_faillock authfail line after pam_unix in /etc/pam.d/common-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    regexp: '^auth\s+\[default=die\]\s+pam_faillock\.so\s+authfail\b.*'
+    line: >-
+      auth [default=die] pam_faillock.so authfail
+    insertafter: '^auth\s+.*pam_unix\.so\b.*'
+    backup: true
+  become: true
+  when:
+    - os_security_lockout_enabled | bool
+    - os_security_pam_faillock_present | bool
+
+
+- name: Ensure common-account includes pam_faillock
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-account
+    regexp: '^account\s+required\s+pam_faillock\.so\b.*'
+    line: 'account required pam_faillock.so'
+    insertbefore: '^account\s+.*pam_unix\.so\b.*'
+    backup: true
+  become: true
+  when:
+    - os_security_lockout_enabled | bool
+    - os_security_pam_faillock_present | bool
+
+# 4) 패스워드 최대 사용 기간 설정 (체크리스트: PASS_MAX_DAYS 90 이하)
+- name: Set PASS_MAX_DAYS in /etc/login.defs
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MAX_DAYS'
+    line: "PASS_MAX_DAYS {{ os_security_pass_max_days }}"
+    backup: true
+  become: true
+
+
+# 5) $HOME/.rhosts, hosts.equiv 사용 금지
+- name: Remove /etc/hosts.equiv
+  ansible.builtin.file:
+    path: /etc/hosts.equiv
+    state: absent
+  become: true
+  when: os_security_disable_rhosts | bool
+
+
+- name: Remove root .rhosts
+  ansible.builtin.file:
+    path: /root/.rhosts
+    state: absent
+  become: true
+  when: os_security_disable_rhosts | bool
+
+
+- name: Find user .rhosts under /home
+  ansible.builtin.find:
+    paths: /home
+    patterns: ".rhosts"
+    file_type: file
+  register: _rhosts_found
+  become: true
+  when: os_security_disable_rhosts | bool
+
+
+- name: Remove user .rhosts files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ _rhosts_found.files | default([]) }}"
+  become: true
+  when: os_security_disable_rhosts | bool
+

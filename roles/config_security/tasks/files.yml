@@ -1,0 +1,102 @@
+# 1) cron파일 소유자 및 권한 설정 (체크리스트: cron.allow 또는 cron.deny 필요)
+- name: Create /etc/cron.allow with allowed users
+  ansible.builtin.copy:
+    dest: /etc/cron.allow
+    content: "{{ os_security_cron_allow_users | join('\n') }}\n"
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  become: true
+
+- name: Remove /etc/cron.deny if exists
+  ansible.builtin.file:
+    path: /etc/cron.deny
+    state: absent
+  become: true
+
+# 2) 주요 설정파일 권한/소유자 설정 (/etc/passwd, /etc/shadow(400), /etc/hosts, /etc/services, /etc/rsyslog.conf 등)
+- name: Harden critical file permissions
+  ansible.builtin.file:
+    path: "{{ item.key }}"
+    owner: "{{ item.value.owner }}"
+    group: "{{ item.value.group }}"
+    mode: "{{ item.value.mode }}"
+  loop: "{{ os_security_files | dict2items }}"
+  become: true
+
+# 3) root 홈, PATH 디렉터리 권한/설정 (체크리스트: PATH 내 '.' 금지)
+- name: Set /root permissions to 0700
+  ansible.builtin.file:
+    path: /root
+    owner: root
+    group: root
+    mode: "0700"
+  become: true
+
+- name: Remove '.' from PATH in /etc/profile (if present)
+  ansible.builtin.replace:
+    path: /etc/profile
+    regexp: '(^|:)\.(?=(:|$))'
+    replace: ''
+    backup: true
+  become: true
+  when: os_security_remove_dot_from_path | bool
+
+- name: Remove '.' from PATH in /root/.profile (if present)
+  ansible.builtin.replace:
+    path: /root/.profile
+    regexp: '(^|:)\.(?=(:|$))'
+    replace: ''
+    backup: true
+  become: true
+  when: os_security_remove_dot_from_path | bool
+
+# 4) 접속 IP 및 포트 제한 (체크리스트: /etc/hosts.deny ALL: ALL + /etc/hosts.allow 허용 IP)
+- name: Configure /etc/hosts.deny (ALL: ALL)
+  ansible.builtin.copy:
+    dest: /etc/hosts.deny
+    content: "{{ 'ALL: ALL\n' if os_security_hosts_deny_all else '' }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  become: true
+  when: os_security_tcpwrappers_enabled | bool
+
+- name: Configure /etc/hosts.allow (allow list)
+  ansible.builtin.copy:
+    dest: /etc/hosts.allow
+    content: "{{ os_security_hosts_allow_lines | join('\n') }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  become: true
+  when: os_security_tcpwrappers_enabled | bool
+
+# 5) 시간대(Timezone) 및 설정 파일 무결성(권한/소유자) + 시간 동기화(timesyncd)
+- name: Ensure systemd-timesyncd installed/enabled (Ubuntu default)
+  ansible.builtin.service:
+    name: systemd-timesyncd
+    state: started
+    enabled: true
+  become: true
+  when: os_security_timesyncd_enable | bool
+  notify: restart systemd-timesyncd
+
+- name: Enable NTP sync via timedatectl
+  ansible.builtin.command: timedatectl set-ntp true
+  changed_when: false
+  become: true
+  when: os_security_timesyncd_enable | bool
+
+- name: Ensure /etc/timezone permissions (if file exists)
+  ansible.builtin.file:
+    path: /etc/timezone
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  when: ansible.builtin.stat(path="/etc/timezone").stat.exists is defined
+

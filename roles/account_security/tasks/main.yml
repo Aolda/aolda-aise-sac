@@ -1,4 +1,6 @@
-- name: account_security | include linux tasks
-  ansible.builtin.include_tasks: linux.yml
-  when: ansible_os_family != "Windows"
-    
+# Account security entry point
+- name: Apply account security hardening
+  ansible.builtin.include_tasks: account.yml
+  tags:
+    - account
+    - hardening

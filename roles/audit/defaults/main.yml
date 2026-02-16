@@ -1,0 +1,4 @@
+# === [C] audit(점검만; 자동수정 위험) ===
+os_security_audit_enabled: true
+os_security_fail_on_audit_findings: false
+os_security_audit_log_path: "/var/log/os-security-audit.log"

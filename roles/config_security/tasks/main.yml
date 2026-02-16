@@ -1,0 +1,6 @@
+# Configuration / file security entry point
+- name: Apply file and configuration hardening
+  ansible.builtin.include_tasks: files.yml
+  tags:
+    - config
+    - hardening

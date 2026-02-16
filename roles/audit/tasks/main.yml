@@ -1,0 +1,6 @@
+# Audit entry point (read-only checks)
+- name: Run security audit checks
+  ansible.builtin.include_tasks: audit.yml
+  tags:
+    - audit
+    - check

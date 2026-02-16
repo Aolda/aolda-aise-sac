@@ -1,26 +1,22 @@
-account_security_disable_root_login: true
-
-security_mode: "audit"
-security_fail_on_violation: true
-
-account_security_ssh_config_path: /etc/ssh/sshd_config
-
-# 1) root 원격접속 제한
-account_security_permit_root_login: "no"   # no / prohibit-password 등
+# === [A] 계정계 ===
+os_security_disable_ssh_root_login: true
 #
-# 2) 패스워드 복잡도 (pwquality)
-account_security_pwquality_minlen: 12
-account_security_pwquality_dcredit: -1
-account_security_pwquality_ucredit: -1
-account_security_pwquality_lcredit: -1
-account_security_pwquality_ocredit: -1
+# Password complexity (pam_pwquality)
+os_security_pw_minlen: 12
+os_security_pw_ucredit: -1
+os_security_pw_lcredit: -1
+os_security_pw_dcredit: -1
+os_security_pw_ocredit: -1
+os_security_pw_retry: 3
+os_security_pw_enforce_for_root: true
 #
-# 3) 계정 잠금 임계값 (faillock)
-account_security_faillock_deny: 5
-account_security_faillock_unlock_time: 900  # seconds
+# Account lockout (pam_faillock)
+os_security_lockout_enabled: true
+os_security_lockout_deny: 5
+os_security_lockout_unlock_time: 600   # seconds
 #
-# 4) 패스워드 최대 사용 기간
-account_security_pass_max_days: 90
-account_security_pass_min_days: 1
-account_security_pass_warn_age: 7
- 
+# PASS_MAX_DAYS
+os_security_pass_max_days: 90
+#
+# rhosts / hosts.equiv
+os_security_disable_rhosts: true

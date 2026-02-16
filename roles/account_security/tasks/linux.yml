@@ -1,9 +1,19 @@
 # root 원격접속 제한 (sshd_config)
+- name: account_security | show skip reasons
+  ansible.builtin.debug:
+    msg:
+      disable_root_login: "{{ account_security_disable_root_login | default('UNDEF') }}"
+      ssh_config_path: "{{ account_security_ssh_config_path | default('UNDEF') }}"
+      os_family: "{{ ansible_os_family }}"
+      distro: "{{ ansible_distribution }}"
+
 - name: account_security | check PermitRootLogin
   ansible.builtin.command: >
-        sh -lc "sshd -T 2>/dev/null | grep -i '^permitrootlogin ' || true"
+    sh -lc "sshd -T 2>/dev/null | grep -i '^permitrootlogin ' || true"
   register: permitrootlogin_out
   changed_when: false
+  check_mode: false
+  when: account_security_disable_root_login | bool
 
 - name: account_security | audit result for PermitRootLogin
   ansible.builtin.set_fact:
@@ -20,5 +30,5 @@
     regexp: '^\s*PermitRootLogin\s+'
     line: "PermitRootLogin {{ account_security_permit_root_login }}"
     create: false
-    notify: restart sshd
-    when: security_mode == "enforce"
+  notify: restart sshd
+  when: security_mode == "enforce"

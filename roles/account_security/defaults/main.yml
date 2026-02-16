@@ -1,3 +1,5 @@
+account_security_disable_root_login: true
+
 security_mode: "audit"
 security_fail_on_violation: true
 

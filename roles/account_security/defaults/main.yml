@@ -1,4 +1,4 @@
-# === [A] 계정계 ===
+# === 계정계 ===
 os_security_disable_ssh_root_login: true
 #
 # Password complexity (pam_pwquality)

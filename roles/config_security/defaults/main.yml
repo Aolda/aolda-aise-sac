@@ -1,0 +1,28 @@
+# === 주요 설정파일 보안설정 ===
+# (체크리스트 기준 권한/소유자)
+os_security_files:
+    /etc/passwd:      { owner: root, group: root, mode: "0644" }
+    /etc/shadow:      { owner: root, group: root, mode: "0400" }   # 체크리스트: 400
+    /etc/group:       { owner: root, group: root, mode: "0644" }
+    /etc/gshadow:     { owner: root, group: root, mode: "0400" }
+    /etc/hosts:       { owner: root, group: root, mode: "0644" }
+    /etc/services:    { owner: root, group: root, mode: "0644" }   # 체크리스트의 /erc/services 오타 대응
+    /etc/rsyslog.conf: { owner: root, group: root, mode: "0644" }
+
+# cron.allow/deny
+os_security_cron_allow_users:
+    - root
+#
+# tcp_wrappers 접근제어(체크리스트: /etc/hosts.deny ALL: ALL + allow에 허용 IP)
+os_security_tcpwrappers_enabled: true
+os_security_hosts_deny_all: true
+os_security_hosts_allow_lines:
+    - "sshd: 192.168.1.0/24"
+    - "sshd: 172.16.10.0/24"
+    - "ALL: 127.0.0.1"
+#
+# PATH 내 '.' 제거(이미 안전해도 강제)
+os_security_remove_dot_from_path: true
+#
+# Time sync (체크리스트: systemd-timesyncd 사용)
+os_security_timesyncd_enable: true

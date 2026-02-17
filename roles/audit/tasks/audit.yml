@@ -1,7 +1,15 @@
+---
+# ==============================
+# Audit Role - Unified Audit
+# ==============================
 
 - name: Skip audits if disabled
   ansible.builtin.meta: end_play
-  when: not (os_security_audit_enabled | bool)
+  when: not (audit_enabled | bool)
+
+# -------------------------------------------------
+# 1. File System Security Scan
+# -------------------------------------------------
 
 - name: Scan for unowned files/dirs (-nouser or -nogroup)
   ansible.builtin.shell: |
@@ -36,29 +44,187 @@
   changed_when: false
   become: true
 
+# -------------------------------------------------
+# 2. Account Policy Audit
+# -------------------------------------------------
+
+- name: Check PermitRootLogin is set to no
+  ansible.builtin.shell: |
+    grep -E '^\s*PermitRootLogin\s+no\b' /etc/ssh/sshd_config || true
+  register: audit_ssh_root
+  changed_when: false
+  become: true
+
+- name: Check pam_pwquality enforce_for_root
+  ansible.builtin.shell: |
+    grep -E 'pam_pwquality\.so.*enforce_for_root' /etc/pam.d/common-password || true
+  register: audit_pwquality
+  changed_when: false
+  become: true
+
+- name: Check pam_faillock configured
+  ansible.builtin.shell: |
+    grep -E 'pam_faillock\.so' /etc/pam.d/common-auth || true
+  register: audit_faillock
+  changed_when: false
+  become: true
+
+- name: Check PASS_MAX_DAYS
+  ansible.builtin.shell: |
+    awk '/^PASS_MAX_DAYS/ {print $2}' /etc/login.defs
+  register: audit_passmax
+  changed_when: false
+  become: true
+
+# -------------------------------------------------
+# 3. Critical File Permission Audit
+# -------------------------------------------------
+
+- name: Stat /etc/shadow
+  ansible.builtin.stat:
+    path: /etc/shadow
+  register: audit_shadow
+  changed_when: false
+  become: true
+
+- name: Stat /etc/passwd
+  ansible.builtin.stat:
+    path: /etc/passwd
+  register: audit_passwd
+  changed_when: false
+  become: true
+
+- name: Stat /etc/rsyslog.conf
+  ansible.builtin.stat:
+    path: /etc/rsyslog.conf
+  register: audit_rsyslog
+  changed_when: false
+  become: true
+
+# -------------------------------------------------
+# 4. Service Audit
+# -------------------------------------------------
+
+- name: Check finger installed
+  ansible.builtin.shell: dpkg -l | grep -w finger || true
+  register: audit_finger
+  changed_when: false
+  become: true
+
+- name: Check vsftpd installed
+  ansible.builtin.shell: dpkg -l | grep -w vsftpd || true
+  register: audit_ftp
+  changed_when: false
+  become: true
+
+- name: Check nfs-server active
+  ansible.builtin.shell: systemctl is-active nfs-server || true
+  register: audit_nfs
+  changed_when: false
+  become: true
+
+- name: Check rpcbind active
+  ansible.builtin.shell: systemctl is-active rpcbind || true
+  register: audit_rpc
+  changed_when: false
+  become: true
+
+# -------------------------------------------------
+# 5. Time Sync Audit
+# -------------------------------------------------
+
+- name: Check NTP synchronization
+  ansible.builtin.shell: timedatectl show -p NTPSynchronized --value
+  register: audit_ntp
+  changed_when: false
+  become: true
+
+# -------------------------------------------------
+# 6. Patch Audit
+# -------------------------------------------------
+
+- name: Check pending security upgrades
+  ansible.builtin.shell: apt list --upgradable 2>/dev/null | grep -i security || true
+  register: audit_updates
+  changed_when: false
+  become: true
+
+# -------------------------------------------------
+# 7. Write Unified Audit Log
+# -------------------------------------------------
+
 - name: Write audit results to log
   ansible.builtin.copy:
-    dest: "{{ os_security_audit_log_path }}"
+    dest: "{{ audit_log_path }}"
     owner: root
     group: root
     mode: "0644"
     content: |
-      [os-security audit]
-      === unowned (nouser/nogroup) ===
-      {{ audit_unowned.stdout | default('') }}
+      [OS Security Audit]
 
-      === world-writable files ===
-      {{ audit_world_writable.stdout | default('') }}
+      === Unowned Files ===
+      {{ audit_unowned.stdout }}
 
-      === suid/sgid files ===
-      {{ audit_suid_sgid.stdout | default('') }}
+      === World Writable Files ===
+      {{ audit_world_writable.stdout }}
+
+      === SUID/SGID Files ===
+      {{ audit_suid_sgid.stdout }}
+
+      === SSH Root Login ===
+      {{ audit_ssh_root.stdout }}
+
+      === PWQuality enforce_for_root ===
+      {{ audit_pwquality.stdout }}
+
+      === PAM Faillock ===
+      {{ audit_faillock.stdout }}
+
+      === PASS_MAX_DAYS ===
+      {{ audit_passmax.stdout }}
+
+      === /etc/shadow mode ===
+      {{ audit_shadow.stat.mode }}
+
+      === /etc/passwd mode ===
+      {{ audit_passwd.stat.mode }}
+
+      === /etc/rsyslog.conf mode ===
+      {{ audit_rsyslog.stat.mode }}
+
+      === Finger Installed ===
+      {{ audit_finger.stdout }}
+
+      === FTP Installed ===
+      {{ audit_ftp.stdout }}
+
+      === NFS Status ===
+      {{ audit_nfs.stdout }}
+
+      === RPC Status ===
+      {{ audit_rpc.stdout }}
+
+      === hosts.deny ===
+      {{ audit_hosts_deny.stdout }}
+
+      === UFW Status ===
+      {{ audit_ufw.stdout }}
+
+      === NTP Sync ===
+      {{ audit_ntp.stdout }}
+
+      === Pending Security Updates ===
+      {{ audit_updates.stdout }}
   become: true
 
-- name: Fail if audit findings exist (optional)
+# -------------------------------------------------
+# 8. Optional Fail on Findings
+# -------------------------------------------------
+
+- name: Fail if audit findings exist
   ansible.builtin.fail:
-    msg: "Audit findings detected. Check {{ os_security_audit_log_path }}"
+    msg: "Audit findings detected. Check {{ audit_log_path }}"
   when:
-    - os_security_fail_on_audit_findings | bool
-    - (audit_unowned.stdout | length) > 0 or (audit_world_writable.stdout | length) > 0
-  become: true
-
+    - audit_fail_on_findings | bool
+    - (audit_unowned.stdout | length > 0)
+      or (audit_world_writable.stdout | length > 0)

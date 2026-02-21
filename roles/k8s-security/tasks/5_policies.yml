@@ -1,0 +1,59 @@
+---
+# roles/k8s-security/tasks/5_policies.yml
+
+# ==============================================================================
+# 가이드: [Master-라] PodSecurityAdmission Configuration (컨테이너 권한 제어)
+# 조치: 네임스페이스에 Pod Security Admission(PSA) 라벨을 부여하여 PSS(Restricted) 강제 적용
+# 주의: 이 작업은 kubectl 명령어를 사용하므로, 마스터 노드(Control Plane)에서 실행되어야 합니다.
+# ==============================================================================
+
+- name: "5-1. default 네임스페이스에 PSA Restricted 정책 라벨 적용"
+  ansible.builtin.command: >
+    kubectl label --overwrite namespace default
+    pod-security.kubernetes.io/enforce=restricted
+    pod-security.kubernetes.io/warn=restricted
+  # 멱등성 보장 및 에러 방지 (이미 라벨이 있거나 API 서버 연결 문제 시 무시)
+  ignore_errors: yes
+  changed_when: false
+
+# ==============================================================================
+# 가이드: [Master-라] 컨테이너 권한 제어 및 네임스페이스 공유 금지
+# 조치: 개발자 및 운영자가 참고할 수 있는 '안전한 파드 템플릿' 제공
+# 설명: Ansible로 모든 개발자의 yaml을 통제할 수 없으므로, 표준 가이드 템플릿을 서버에 배포합니다.
+# ==============================================================================
+
+- name: "5-2. 안전한 Pod 배포 템플릿(가이드용) 파일 생성"
+  ansible.builtin.copy:
+    dest: /etc/kubernetes/secure-pod-template.yaml
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: secure-pod-example
+        namespace: default
+      spec:
+        # ---------------------------------------------------------
+        # [네임스페이스 공유 금지] 호스트 자원(Network, PID, IPC) 격리
+        # ---------------------------------------------------------
+        hostNetwork: false
+        hostPID: false
+        hostIPC: false
+        
+        containers:
+        - name: secure-container
+          image: nginx:latest
+          # ---------------------------------------------------------
+          # [컨테이너 권한 제어] 최소 권한 원칙 적용 (SecurityContext)
+          # ---------------------------------------------------------
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000  # 0(root)이 아닌 사용자 UID
+            capabilities:
+              drop:
+                - "ALL"
+            seccompProfile:
+              type: "RuntimeDefault"

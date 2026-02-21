@@ -43,3 +43,17 @@
       - root
       - 'admin_user'  # 예시: 실제 운영자 ID
       - 'cicd_agent'  # 예시: 배포 담당 계정
+
+# [3. 도커를 위한 콘텐츠 신뢰성 활성화]
+
+- name: "도커 콘텐츠 신뢰성 활성화 (DOCKER_CONTENT_TRUST)"
+  ansible.builtin.lineinfile:
+    # ### [CHECK 5] 전역 환경 변수 스크립트 경로 ###
+    # /etc/profile.d/ 하위에 넣으면 사용자가 로그인할 때마다 적용됩니다. 
+    # OS 환경(bash, zsh 등)에 따라 이 경로를 정상적으로 읽어들이는지 확인이 필요합니다.
+    path: /etc/profile.d/docker-security.sh
+    create: yes
+    line: "export DOCKER_CONTENT_TRUST=1"
+    owner: root
+    group: root
+    mode: '0644'

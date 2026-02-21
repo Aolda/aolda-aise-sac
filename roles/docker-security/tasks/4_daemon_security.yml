@@ -1,0 +1,31 @@
+---
+# roles/docker-security/tasks/4_daemon_security.yml
+
+# ==============================================================================
+# ### [CHECK] 주의 사항 ###
+# 1. 이 작업은 /etc/docker/daemon.json 파일을 덮어쓰거나 생성합니다.
+# 2. 기존 설정이 있다면 내용을 합쳐야 합니다. (현재는 신규 생성 기준)
+# ==============================================================================
+
+# [추가 권한 획득 제한]
+# 가이드: 컨테이너가 suid 등을 통해 권한 상승을 못하게 제한
+# 조치: daemon.json에 "no-new-privileges": true 설정 추가
+
+- name: "4-1. Docker Daemon 설정 디렉터리 확인"
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    mode: '0755'
+
+- name: "4-2. daemon.json 설정 (no-new-privileges 활성화)"
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "no-new-privileges": true
+      }
+    owner: root
+    group: root
+    mode: '0644'
+    # 파일이 없으면 생성, 있으면 덮어씀 (백업 필요시 backup: yes 추가)
+  notify: Restart Docker

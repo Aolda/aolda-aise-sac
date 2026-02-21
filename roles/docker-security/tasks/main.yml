@@ -1,0 +1,14 @@
+---
+# roles/docker-security/tasks/main.yml
+
+- name: "[1-2] Docker 버전 패치 및 그룹 사용자 제한"
+  include_tasks: 1_version_and_users.yml
+
+- name: "[3-8] Docker Audit(감사) 규칙 설정"
+  include_tasks: 2_audit_config.yml
+
+- name: "[9-13] 주요 파일 소유권 및 권한 설정"
+  include_tasks: 3_file_permissions.yml
+
+- name: "[14] 컨테이너 추가 권한 획득 제한 (Daemon 설정)"
+  include_tasks: 4_daemon_security.yml

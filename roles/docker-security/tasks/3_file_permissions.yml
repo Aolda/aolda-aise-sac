@@ -1,0 +1,47 @@
+---
+# roles/docker-security/tasks/3_file_permissions.yml
+
+# ==============================================================================
+# ### [CHECK] 사전 확인 필요 사항 ###
+# 1. systemd 경로: /lib/systemd/system/ (Ubuntu) 또는 /usr/lib/systemd/system/ (CentOS/RHEL)
+# 2. 소켓 경로: /var/run/docker.sock (일반적)
+# ==============================================================================
+
+# [docker.service 파일 권한]
+# 가이드: root:root / 644
+- name: "3-1. docker.service 소유권(root:root) 및 권한(644) 설정"
+  ansible.builtin.file:
+    # ### [CHECK] 실제 서비스 파일 경로 확인 필요 ###
+    path: /lib/systemd/system/docker.service
+    owner: root
+    group: root
+    mode: '0644'
+  
+# [docker.socket 파일 권한]
+# 가이드: root:root / 644
+- name: "3-2. docker.socket 소유권(root:root) 및 권한(644) 설정"
+  ansible.builtin.file:
+    # ### [CHECK] 실제 소켓 서비스 파일 경로 확인 필요 ###
+    path: /lib/systemd/system/docker.socket
+    owner: root
+    group: root
+    mode: '0644'
+
+# [/etc/docker 디렉터리 권한]
+# 가이드: root:root / 755
+- name: "3-3. /etc/docker 디렉터리 소유권(root:root) 및 권한(755) 설정"
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+# [/var/run/docker.sock 파일 권한]
+# 가이드: root:docker / 660 (매우 중요: 일반 사용자 접근 차단)
+- name: "3-4. Docker 소켓 파일 소유권(root:docker) 및 권한(660) 설정"
+  ansible.builtin.file:
+    path: /var/run/docker.sock
+    owner: root
+    group: docker
+    mode: '0660'

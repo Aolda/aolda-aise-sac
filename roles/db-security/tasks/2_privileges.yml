@@ -1,0 +1,30 @@
+---
+# roles/db-security/tasks/2_privileges.yml
+
+# ==============================================================================
+# ### [CHECK] 사전 확인 필요 사항 ###
+# 1. 권한을 제어할 '실제 일반 사용자 계정명' (예: nova, keystone, app_user 등)
+# ==============================================================================
+
+- name: "3-1. 일반 사용자에게서 GRANT OPTION 권한 회수"
+  community.mysql.mysql_query:
+    # ### [CHECK] 실제 소켓 경로로 수정하세요 ###
+    login_unix_socket: /var/lib/mysql/mysql.sock
+    query: "REVOKE GRANT OPTION ON *.* FROM '{{ item }}'@'%'"
+  ignore_errors: yes
+  loop:
+    # ### [CHECK] 아래 목록을 실제 운영 중인 계정명으로 변경하세요 ###
+    - '<실제_사용자_계정1>'
+    - '<실제_사용자_계정2>'
+
+- name: "4-1. mysql.user 테이블에 대한 접근(Select) 권한 회수"
+  community.mysql.mysql_query:
+    # ### [CHECK] 실제 소켓 경로로 수정하세요 ###
+    login_unix_socket: /var/lib/mysql/mysql.sock
+    # mysql.user 테이블을 볼 수 없도록 차단
+    query: "REVOKE SELECT ON mysql.user FROM '{{ item }}'@'%'"
+  ignore_errors: yes
+  loop:
+    # ### [CHECK] 위와 동일하게 실제 계정명으로 변경하세요 ###
+    - '<실제_사용자_계정1>'
+    - '<실제_사용자_계정2>'

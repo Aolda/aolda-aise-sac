@@ -1,0 +1,11 @@
+---
+# roles/db-security/tasks/main.yml
+
+- name: "[1-2] 계정 정리 및 패스워드 정책 적용"
+  include_tasks: 1_accounts_password.yml
+
+- name: "[3-4] 권한 부여 옵션 및 테이블 접근 제한"
+  include_tasks: 2_privileges.yml
+
+- name: "[5-7] Root 구동 제한, 파일 권한, 로그 설정"
+  include_tasks: 3_root_and_logging.yml

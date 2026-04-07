@@ -18,8 +18,8 @@
 이수빈</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/m1cks"><img src="https://avatars.githubusercontent.com/u/29903378?v=4" width="100px;" alt=""/><br /><sub><b>
 인승진</b></sub></a><br /></td>
-    <td align="center"><a href="https://aolda-workspace.notion.site"><img src="https://shared-comic.pstatic.net/thumb/webtoon/796152/thumbnail/thumbnail_IMAG19_80e8b206-87f3-4c7f-8913-daf4cf6bcdea.jpg" width="100px;" alt=""/><br /><sub><b>
-참여원 3</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/ag4710"><img src="https://avatars.githubusercontent.com/u/105358110?v=4" width="100px;" alt=""/><br /><sub><b>
+이은환</b></sub></a><br /></td>
     <td align="center"><a href="https://aolda-workspace.notion.site"><img src="https://shared-comic.pstatic.net/thumb/webtoon/796152/thumbnail/thumbnail_IMAG19_80e8b206-87f3-4c7f-8913-daf4cf6bcdea.jpg" width="100px;" alt=""/><br /><sub><b>
 참여원 4</b></sub></a><br /></td>
   </tr>

@@ -17,7 +17,7 @@
     <td align="center"><a href="https://github.com/su-biin"><img src="https://avatars.githubusercontent.com/u/218368342?s=400&v=4" width="100px;" alt=""/><br /><sub><b>
 이수빈</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/m1cks"><img src="https://avatars.githubusercontent.com/u/29903378?v=4" width="100px;" alt=""/><br /><sub><b>
-참여원 2</b></sub></a><br /></td>
+인승진</b></sub></a><br /></td>
     <td align="center"><a href="https://aolda-workspace.notion.site"><img src="https://shared-comic.pstatic.net/thumb/webtoon/796152/thumbnail/thumbnail_IMAG19_80e8b206-87f3-4c7f-8913-daf4cf6bcdea.jpg" width="100px;" alt=""/><br /><sub><b>
 참여원 3</b></sub></a><br /></td>
     <td align="center"><a href="https://aolda-workspace.notion.site"><img src="https://shared-comic.pstatic.net/thumb/webtoon/796152/thumbnail/thumbnail_IMAG19_80e8b206-87f3-4c7f-8913-daf4cf6bcdea.jpg" width="100px;" alt=""/><br /><sub><b>

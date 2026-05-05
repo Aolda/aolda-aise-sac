@@ -90,9 +90,9 @@
 
 - name: "불필요한 주요 실행 파일의 SUID/SGID 속성 제거 (chmod -s)"
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.item }}"
     mode: "u-s,g-s"
-  loop: "{{ unnecessary_suid_sgid_files }}"
+  loop: "{{ suid_files_stat.results }}"
   when: item.stat.exists # 파일이 존재할 때만 실행하여 에러 방지
 
 
@@ -126,7 +126,7 @@
 
 - name: "PATH 변수 내 중간에 위치한 '.' 제거"
   ansible.builtin.replace:
-    path: "{{ item.stat.path }}"
+    path: "{{ item.item }}"
     regexp: ':\.:'
     replace: ':'
   loop: "{{ path_files_stat.results }}"
@@ -134,7 +134,7 @@
 
 - name: "PATH 변수 내 맨 뒤에 위치한 '.' 제거"
   ansible.builtin.replace:
-    path: "{{ item.stat.path }}"
+    path: "{{ item.item }}"
     regexp: ':\.$'
     replace: ''
   loop: "{{ path_files_stat.results }}"
@@ -142,7 +142,7 @@
 
 - name: "PATH 변수 내 맨 앞에 위치한 '.' 제거"
   ansible.builtin.replace:
-    path: "{{ item.stat.path }}"
+    path: "{{ item.item }}"
     regexp: 'PATH=\.:'
     replace: 'PATH='
   loop: "{{ path_files_stat.results }}"

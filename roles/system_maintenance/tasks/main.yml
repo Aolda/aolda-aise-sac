@@ -95,9 +95,9 @@
 
 - name: "cron 관련 주요 디렉터리 타사용자 쓰기 권한(o-w) 제거"
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.item }}"
     mode: "o-w"
-  loop: "{{ cron_directories }}"
+  loop: "{{ cron_dirs_stat.results }}"
   when: item.stat.exists # 디렉터리가 실제로 존재할 경우에만 권한 제거 수행
 
 

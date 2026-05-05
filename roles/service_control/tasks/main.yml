@@ -18,10 +18,10 @@
 
 - name: "xinetd 기반 취약 서비스 구성 파일에서 disable=yes 설정"
   ansible.builtin.replace:
-    path: "/etc/xinetd.d/{{ item }}"
+    path: "/etc/xinetd.d/{{ item.item }}"
     regexp: '(?i)disable\s*=\s*no'
     replace: 'disable = yes'
-  loop: "{{ xinetd_vulnerable_services }}"
+  loop: "{{ xinetd_files_stat.results }}"
   when: item.stat.exists
   notify: restart xinetd
 

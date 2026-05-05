@@ -10,14 +10,20 @@
 
 
 # [xinetd 기반 서비스 비활성화]
+- name: "xinetd 기반 취약 서비스 구성 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "/etc/xinetd.d/{{ item }}"
+  loop: "{{ xinetd_vulnerable_services }}"
+  register: xinetd_files_stat
+
 - name: "xinetd 기반 취약 서비스 구성 파일에서 disable=yes 설정"
   ansible.builtin.replace:
     path: "/etc/xinetd.d/{{ item }}"
     regexp: '(?i)disable\s*=\s*no'
     replace: 'disable = yes'
   loop: "{{ xinetd_vulnerable_services }}"
+  when: item.stat.exists
   notify: restart xinetd
-  ignore_errors: yes  # 최신 OS에서는 xinetd 자체가 없을 수 있으므로 에러 무시
 
 
 # [독립 데몬 비활성화]
@@ -28,21 +34,31 @@
     enabled: no
     masked: yes  # 데몬이 수동으로도 켜지지 않도록 마스킹 처리
   loop: "{{ standalone_services_to_disable }}"
-  ignore_errors: yes
+  failed_when: false # 서비스가 존재하지 않아 에러가 나더라도 무시하고 진행
 
 
 # [Anonymous FTP 접속 차단]
+- name: "vsftpd 설정 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: /etc/vsftpd.conf
+  register: vsftpd_stat
+
 - name: "vsftpd 환경에서 Anonymous FTP 접속 차단 설정"
   ansible.builtin.lineinfile:
     path: /etc/vsftpd.conf
     regexp: '^anonymous_enable='
     line: 'anonymous_enable=NO'
     state: present
-  ignore_errors: yes
+  when: vsftpd_stat.stat.exists
+
+- name: "proftpd 설정 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: /etc/proftpd/proftpd.conf
+  register: proftpd_stat
 
 - name: "proftpd 환경에서 Anonymous FTP 접속 차단 설정 (UserAlias 주석 처리)"
   ansible.builtin.replace:
     path: /etc/proftpd/proftpd.conf
     regexp: '^\s*UserAlias\s+anonymous\s+ftp'
     replace: '# UserAlias anonymous ftp'
-  ignore_errors: yes
+  when: proftpd_stat.stat.exists

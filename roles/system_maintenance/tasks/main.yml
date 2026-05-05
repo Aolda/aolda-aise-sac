@@ -13,6 +13,7 @@
 - name: "시스템 시간대(Timezone)를 설정하여 로그 타임라인 무결성 확보"
   ansible.builtin.command: "timedatectl set-timezone {{ system_timezone }}"
   changed_when: false # 멱등성 유지를 위해 상태 변경 무시
+  failed_when: false # 일부 가상 환경에서 timedatectl 명령어가 없을 경우를 대비해 예외 처리
 
 - name: "시간대 설정 파일(/etc/localtime, /etc/timezone) 권한 및 소유자 보호 (644 권한)"
   ansible.builtin.file:
@@ -25,6 +26,12 @@
   loop:
     - "{{ path_localtime }}"
     - "{{ path_timezone }}"
+  failed_when: false # 파일이 없는 경우 중단 방지
+
+- name: "timesyncd.conf 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ path_timesyncd_conf }}"
+  register: timesyncd_conf_stat
 
 - name: "timesyncd 설정 파일(/etc/systemd/timesyncd.conf) 권한 및 소유자 보호 (644 권한)"
   ansible.builtin.file:
@@ -33,6 +40,7 @@
     group: "{{ file_group_root }}"
     mode: "{{ file_mode_644 }}"
     state: file
+  when: timesyncd_conf_stat.stat.exists  # 파일이 존재할 때만 실행하여 에러 방지
   notify: restart timesyncd
 
 - name: "systemd-timesyncd 서비스 활성화 및 구동 (NTP 동기화)"
@@ -40,9 +48,16 @@
     name: systemd-timesyncd
     state: started
     enabled: yes
+  when: timesyncd_conf_stat.stat.exists  # 서비스 환경이 구성되어 있을 때만 실행
+  failed_when: false 
 
 
 # [로그 파일 보호]
+- name: "/etc/rsyslog.conf 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ path_rsyslog_conf }}"
+  register: rsyslog_conf_stat
+
 - name: "/etc/rsyslog.conf 파일 소유자 root 및 권한 설정 (644 권한)"
   ansible.builtin.file:
     path: "{{ path_rsyslog_conf }}"
@@ -50,6 +65,7 @@
     group: "{{ file_group_root }}"
     mode: "{{ file_mode_644 }}"
     state: file
+  when: rsyslog_conf_stat.stat.exists
   notify: restart rsyslog
 
 
@@ -61,6 +77,7 @@
     group: "{{ file_group_root }}"
     mode: "{{ file_mode_640 }}"
     state: file
+  failed_when: false
 
 - name: "/etc/cron.allow 파일 생성 및 권한 설정 (640 권한)"
   ansible.builtin.file:
@@ -70,12 +87,18 @@
     mode: "{{ file_mode_640 }}"
     state: touch
 
+- name: "cron 관련 주요 디렉터리 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ cron_directories }}"
+  register: cron_dirs_stat
+
 - name: "cron 관련 주요 디렉터리 타사용자 쓰기 권한(o-w) 제거"
   ansible.builtin.file:
     path: "{{ item }}"
     mode: "o-w"
   loop: "{{ cron_directories }}"
-  ignore_errors: yes
+  when: item.stat.exists # 디렉터리가 실제로 존재할 경우에만 권한 제거 수행
 
 
 # [최신 보안 패치 적용]

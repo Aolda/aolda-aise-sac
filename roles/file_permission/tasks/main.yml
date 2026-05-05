@@ -53,6 +53,7 @@
     executable: /bin/bash
   register: env_file_chmod
   changed_when: env_file_chmod.stdout | length > 0
+  failed_when: false # find 결과가 없더라도 실패로 처리하지 않음
 
 
 # [우회 인증 차단]
@@ -80,12 +81,19 @@
   register: ww_remove
   changed_when: ww_remove.stdout | length > 0
 
+
+- name: "불필요한 주요 실행 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ unnecessary_suid_sgid_files }}"
+  register: suid_files_stat
+
 - name: "불필요한 주요 실행 파일의 SUID/SGID 속성 제거 (chmod -s)"
   ansible.builtin.file:
     path: "{{ item }}"
     mode: "u-s,g-s"
   loop: "{{ unnecessary_suid_sgid_files }}"
-  ignore_errors: yes  # 시스템에 설치되지 않은 패키지 에러 무시
+  when: item.stat.exists # 파일이 존재할 때만 실행하여 에러 방지
 
 
 - name: "root 홈 디렉터리 타 사용자 접근 제한 (700 권한)"

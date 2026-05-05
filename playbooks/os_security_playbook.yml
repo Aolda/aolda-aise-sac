@@ -5,3 +5,9 @@
   become: yes
   roles:
     - account_control
+
+- name: 주요 설정 파일 및 디렉터리 권한 통제 영역
+  hosts: lab
+  become: yes
+  roles:
+    - file_permission

@@ -1,0 +1,115 @@
+---
+# 주요 설정 파일 및 디렉터리 권한 통제 영역
+
+
+# [계정 및 패스워드 파일 보호]
+- name: "/etc/passwd 파일 소유자 및 권한 설정 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ path_passwd }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_644 }}"
+    state: file
+
+- name: "/etc/shadow 파일 소유자 및 권한 설정 (400 권한)"
+  ansible.builtin.file:
+    path: "{{ path_shadow }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_400 }}"
+    state: file
+
+
+# [시스템 설정 파일 보호]
+- name: "/etc/hosts 파일 소유자 및 권한 설정 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ path_hosts }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_644 }}"
+    state: file
+
+- name: "/etc/services 파일 소유자 및 권한 설정 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ path_services }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_644 }}"
+    state: file
+
+- name: "시스템 전역 환경 파일(/etc/profile) 소유자 및 권한 설정 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ path_etc_profile }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_644 }}"
+    state: file
+
+- name: "사용자 홈 디렉터리 내 환경 파일 권한 설정 (644 권한)"
+  # 대상 파일: .profile, .bashrc, .bash_profile 등
+  ansible.builtin.shell: |
+    find /home /root -maxdepth 1 -type f \( -name ".profile" -o -name ".bashrc" -o -name ".bash_profile" -o -name ".cshrc" -o -name ".kshrc" -o -name ".login" \) -exec chmod 644 {} +
+  args:
+    executable: /bin/bash
+  register: env_file_chmod
+  changed_when: env_file_chmod.stdout | length > 0
+
+
+# [우회 인증 차단]
+- name: "/etc/hosts.equiv 파일 제거"
+  ansible.builtin.file:
+    path: "{{ path_hosts_equiv }}"
+    state: absent
+
+- name: "전체 사용자 home 디렉터리 내 .rhosts 파일 검색 및 일괄 제거"
+  ansible.builtin.shell: |
+    find /home -name ".rhosts" -type f -exec rm -f {} +
+    find /root -name ".rhosts" -type f -exec rm -f {} +
+  args:
+    executable: /bin/bash
+  register: rhosts_remove
+  changed_when: rhosts_remove.stdout | length > 0
+
+
+# [취약한 권한 점검]
+- name: "World-writable 파일 검색 및 타 사용자 쓰기 권한(o-w) 제거"
+  ansible.builtin.shell: |
+    find / -path /proc -prune -o -path /sys -prune -o -path /tmp -prune -o -path /var/tmp -prune -o -type f -perm -0002 -exec chmod o-w {} +
+  args:
+    executable: /bin/bash
+  register: ww_remove
+  changed_when: ww_remove.stdout | length > 0
+
+- name: "불필요한 주요 실행 파일의 SUID/SGID 속성 제거 (chmod -s)"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "u-s,g-s"
+  loop: "{{ unnecessary_suid_sgid_files }}"
+  ignore_errors: yes  # 시스템에 설치되지 않은 패키지 에러 무시
+
+
+- name: "root 홈 디렉터리 타 사용자 접근 제한 (700 권한)"
+  ansible.builtin.file:
+    path: "{{ path_root_dir }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ dir_mode_700 }}"
+    state: directory
+
+- name: "/etc/profile 및 root 환경 파일의 PATH 변수 내 현재 디렉터리('.') 제거"
+  # 정규식을 통해 PATH=.:$PATH, PATH=$PATH:. 등의 패턴에서 악의적인 '.' 우선 참조 설정을 제거
+  ansible.builtin.shell: |
+    sed -i 's/:\.:/:/g; s/:\.$//; s/PATH=\.:/PATH=/' /etc/profile /root/.profile /root/.bash_profile /root/.bashrc 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  register: path_dot_remove
+  changed_when: false # 멱등성 유지를 위해 단순 텍스트 치환은 changed_when 조건 생략
+
+- name: '소유자나 그룹이 존재하지 않는 파일 및 디렉터리를 root 소유로 일괄 변경'
+  # 시스템 주요 디렉터리를 스캔하여 주인이 없는 고아 파일을 안전하게 root:root로 귀속
+  ansible.builtin.shell: |
+    find /etc /tmp /bin /sbin /home /var \( -nouser -o -nogroup \) -exec chown root:root {} + 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  register: orphan_files
+  changed_when: orphan_files.stdout | length > 0

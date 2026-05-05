@@ -4,22 +4,22 @@
   hosts: lab
   become: yes
   roles:
-    - account_control
+    - ../roles/account_control
 
 - name: 주요 설정 파일 및 디렉터리 권한 통제 영역
   hosts: lab
   become: yes
   roles:
-    - file_permission
+    - ../roles/file_permission
 
 - name: 불필요한 서비스 및 데몬 통제 영역
   hosts: lab
   become: yes
   roles:
-    - service_control
+    - ../roles/service_control
 
 - name: 시스템 유지보수 및 인프라 운영 영역
   hosts: lab
   become: yes
   roles:
-    - system_maintenance
+    - ../roles/system_maintenance

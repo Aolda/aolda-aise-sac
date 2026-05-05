@@ -13,3 +13,20 @@ file_mode_400: '0400'
 
 # 중요 디렉터리는 타 사용자 접근 원천 차단 (700)
 dir_mode_700: '0700'
+
+# [권한 상승 공격에 악용될 수 있는 취약한 SUID/SGID 파일 목록]
+unnecessary_suid_sgid_files:
+  - /sbin/dump
+  - /sbin/restore
+  - /sbin/unix_chkpwd
+  - /usr/bin/at
+  - /usr/bin/lpq
+  - /usr/bin/lpq-lpd
+  - /usr/bin/lpr
+  - /usr/bin/lpr-lpd
+  - /usr/bin/lprm
+  - /usr/bin/lprm-lpd
+  - /usr/bin/newgrp
+  - /usr/sbin/lpc
+  - /usr/sbin/lpc-lpd
+  - /usr/sbin/traceroute

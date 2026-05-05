@@ -1,0 +1,23 @@
+---
+
+# [xinetd 기반 비활성화 대상 서비스]
+xinetd_vulnerable_services:
+  - echo
+  - discard
+  - daytime
+  - chargen
+  - rlogin
+  - rsh
+  - rexec
+  - finger
+  - tftp
+  - talk
+  - ntalk
+  - rstatd
+
+# [중지 및 비활성화 대상 독립 서비스 데몬]
+standalone_services_to_disable:
+  - nfs-server
+  - rpcbind
+  - autofs
+  - sendmail

@@ -1,0 +1,48 @@
+---
+# 불필요한 서비스 및 데몬 통제 영역
+
+
+# [취약 서비스 패키지 제거]
+- name: "불필요하고 취약한 레거시 패키지 제거"
+  ansible.builtin.apt:
+    name: "{{ unnecessary_packages }}"
+    state: absent
+
+
+# [xinetd 기반 서비스 비활성화]
+- name: "xinetd 기반 취약 서비스 구성 파일에서 disable=yes 설정"
+  ansible.builtin.replace:
+    path: "/etc/xinetd.d/{{ item }}"
+    regexp: '(?i)disable\s*=\s*no'
+    replace: 'disable = yes'
+  loop: "{{ xinetd_vulnerable_services }}"
+  notify: restart xinetd
+  ignore_errors: yes  # 최신 OS에서는 xinetd 자체가 없을 수 있으므로 에러 무시
+
+
+# [독립 데몬 비활성화]
+- name: "불필요한 원격 및 공유 서비스 데몬 중지/비활성화"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+    masked: yes  # 데몬이 수동으로도 켜지지 않도록 마스킹 처리
+  loop: "{{ standalone_services_to_disable }}"
+  ignore_errors: yes
+
+
+# [Anonymous FTP 접속 차단]
+- name: "vsftpd 환경에서 Anonymous FTP 접속 차단 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/vsftpd.conf
+    regexp: '^anonymous_enable='
+    line: 'anonymous_enable=NO'
+    state: present
+  ignore_errors: yes
+
+- name: "proftpd 환경에서 Anonymous FTP 접속 차단 설정 (UserAlias 주석 처리)"
+  ansible.builtin.replace:
+    path: /etc/proftpd/proftpd.conf
+    regexp: '^\s*UserAlias\s+anonymous\s+ftp'
+    replace: '# UserAlias anonymous ftp'
+  ignore_errors: yes

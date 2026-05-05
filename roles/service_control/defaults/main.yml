@@ -1,0 +1,14 @@
+---
+
+# [제거 대상 불필요/취약 패키지 목록]
+# 정보 노출 및 인증 우회 위험이 있는 레거시 서비스 패키지
+unnecessary_packages:
+  - finger
+  - tftpd
+  - talk
+  - ntalk
+  - rsh-server
+  - rsh-client
+  - nis
+  - sendmail
+  - autofs

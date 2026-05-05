@@ -1,0 +1,19 @@
+---
+
+# [SSH 원격 접속 정책]
+sshd_permit_root_login: 'no'
+
+# [패스워드 사용 정책]
+os_pass_max_days: 90
+
+# [패스워드 복잡도 정책 (pam_pwquality)]
+pam_pwquality_retry: 3
+pam_pwquality_minlen: 8
+pam_pwquality_lcredit: -1
+pam_pwquality_ucredit: -1
+pam_pwquality_dcredit: -1
+pam_pwquality_ocredit: -1
+
+# [계정 잠금 임계값 정책]
+pam_deny_count: 5
+pam_unlock_time: 600

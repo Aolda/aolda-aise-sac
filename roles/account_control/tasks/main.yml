@@ -1,0 +1,32 @@
+---
+# 계정 및 인증 통제 영역
+
+- name: "SSH 설정 파일에서 root 원격 접속 제한"
+  ansible.builtin.lineinfile:
+    path: "{{ path_sshd_config }}"
+    regexp: '^#?\s*PermitRootLogin\s+'
+    line: "PermitRootLogin {{ sshd_permit_root_login }}"
+    state: present
+    validate: 'sshd -t -f %s'
+  notify: restart ssh
+
+- name: "패스워드 최대 사용 기간 설정"
+  ansible.builtin.lineinfile:
+    path: "{{ path_login_defs }}"
+    regexp: '^PASS_MAX_DAYS'
+    line: "PASS_MAX_DAYS {{ os_pass_max_days }}"
+    state: present
+
+- name: "패스워드 복잡도 정책 및 root 적용 강제"
+  ansible.builtin.lineinfile:
+    path: "{{ path_pam_password }}"
+    regexp: '^password\s+requisite\s+pam_pwquality.so'
+    line: "password requisite pam_pwquality.so enforce_for_root retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} lcredit={{ pam_pwquality_lcredit }} ucredit={{ pam_pwquality_ucredit }} dcredit={{ pam_pwquality_dcredit }} ocredit={{ pam_pwquality_ocredit }}"
+    state: present
+
+- name: "로그인 실패 시 계정 잠금 임계값 설정"
+  ansible.builtin.lineinfile:
+    path: "{{ path_pam_auth }}"
+    regexp: '^auth\s+required\s+pam_tally2.so'
+    line: "auth required pam_tally2.so deny={{ pam_deny_count }} onerr=fail unlock_time={{ pam_unlock_time }}"
+    state: present

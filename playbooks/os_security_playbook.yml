@@ -1,0 +1,7 @@
+---
+
+- name: OS 계정 및 인증 통제 보안 조치 실행
+  hosts: lab
+  become: yes
+  roles:
+    - account_control

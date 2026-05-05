@@ -1,0 +1,13 @@
+---
+
+# [파일 소유자 및 권한 정책]
+file_owner_root: 'root'
+file_group_root: 'root'
+file_mode_644: '0644'
+file_mode_640: '0640'
+
+# [시간대 설정]
+system_timezone: 'Asia/Seoul'
+
+# [최신 보안 패치 자동 적용 여부]
+apply_security_updates: yes

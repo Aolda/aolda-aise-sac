@@ -1,0 +1,21 @@
+---
+
+# 시간대 및 동기화 설정 파일 경로
+path_localtime: '/etc/localtime'
+path_timezone: '/etc/timezone'
+path_timesyncd_conf: '/etc/systemd/timesyncd.conf'
+
+# 로그 설정 파일 경로
+path_rsyslog_conf: '/etc/rsyslog.conf'
+
+# 스케줄러(cron) 관련 파일 경로
+path_crontab: '/etc/crontab'
+path_cron_allow: '/etc/cron.allow'
+
+# 타사용자 쓰기 권한 제한 대상 cron 디렉터리 목록
+cron_directories:
+  - /etc/cron.hourly
+  - /etc/cron.daily
+  - /etc/cron.weekly
+  - /etc/cron.monthly
+  - /etc/cron.d

@@ -11,3 +11,11 @@
   become: yes
   roles:
     - file_permission
+
+
+
+- name: 시스템 유지보수 및 인프라 운영 영역
+  hosts: lab
+  become: yes
+  roles:
+    - system_maintenance

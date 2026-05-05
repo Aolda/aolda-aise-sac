@@ -1,0 +1,86 @@
+---
+# 시스템 유지보수 및 인프라 운영 영역
+
+
+# [시간대(Timezone) 및 동기화 데몬 통제 (ntpd, chronyd 사용 X)]
+- name: "불필요/취약 NTP 데몬(ntp, chrony) 패키지 제거 강제"
+  ansible.builtin.apt:
+    name:
+      - ntp
+      - chrony
+    state: absent
+
+- name: "시스템 시간대(Timezone)를 설정하여 로그 타임라인 무결성 확보"
+  ansible.builtin.command: "timedatectl set-timezone {{ system_timezone }}"
+  changed_when: false # 멱등성 유지를 위해 상태 변경 무시
+
+- name: "시간대 설정 파일(/etc/localtime, /etc/timezone) 권한 및 소유자 보호 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    # 심볼릭 링크인 경우를 대비하여 follow 옵션 적용
+    mode: "{{ file_mode_644 }}"
+    follow: yes
+  loop:
+    - "{{ path_localtime }}"
+    - "{{ path_timezone }}"
+
+- name: "timesyncd 설정 파일(/etc/systemd/timesyncd.conf) 권한 및 소유자 보호 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ path_timesyncd_conf }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_644 }}"
+    state: file
+  notify: restart timesyncd
+
+- name: "systemd-timesyncd 서비스 활성화 및 구동 (NTP 동기화)"
+  ansible.builtin.service:
+    name: systemd-timesyncd
+    state: started
+    enabled: yes
+
+
+# [로그 파일 보호]
+- name: "/etc/rsyslog.conf 파일 소유자 root 및 권한 설정 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ path_rsyslog_conf }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_644 }}"
+    state: file
+  notify: restart rsyslog
+
+
+# [스케줄러(cron) 변조 방지]
+- name: "/etc/crontab 파일 소유자 root 및 권한 설정 (640 권한)"
+  ansible.builtin.file:
+    path: "{{ path_crontab }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_640 }}"
+    state: file
+
+- name: "/etc/cron.allow 파일 생성 및 권한 설정 (640 권한)"
+  ansible.builtin.file:
+    path: "{{ path_cron_allow }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_640 }}"
+    state: touch
+
+- name: "cron 관련 주요 디렉터리 타사용자 쓰기 권한(o-w) 제거"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "o-w"
+  loop: "{{ cron_directories }}"
+  ignore_errors: yes
+
+
+# [최신 보안 패치 적용]
+- name: "OS 및 패키지 최신 보안 패치 업데이트 적용"
+  ansible.builtin.apt:
+    update_cache: yes
+    upgrade: dist
+  when: apply_security_updates | bool

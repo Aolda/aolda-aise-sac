@@ -104,15 +104,6 @@
     mode: "{{ dir_mode_700 }}"
     state: directory
 
-- name: "/etc/profile 및 root 환경 파일의 PATH 변수 내 현재 디렉터리('.') 제거"
-  # 정규식을 통해 PATH=.:$PATH, PATH=$PATH:. 등의 패턴에서 악의적인 '.' 우선 참조 설정을 제거
-  ansible.builtin.shell: |
-    sed -i 's/:\.:/:/g; s/:\.$//; s/PATH=\.:/PATH=/' /etc/profile /root/.profile /root/.bash_profile /root/.bashrc 2>/dev/null || true
-  args:
-    executable: /bin/bash
-  register: path_dot_remove
-  changed_when: false # 멱등성 유지를 위해 단순 텍스트 치환은 changed_when 조건 생략
-
 - name: '소유자나 그룹이 존재하지 않는 파일 및 디렉터리를 root 소유로 일괄 변경'
   # 시스템 주요 디렉터리를 스캔하여 주인이 없는 고아 파일을 안전하게 root:root로 귀속
   ansible.builtin.shell: |
@@ -121,3 +112,38 @@
     executable: /bin/bash
   register: orphan_files
   changed_when: orphan_files.stdout | length > 0
+
+# [/etc/profile 및 root 환경 파일의 PATH 변수 내 현재 디렉터리('.') 제거]
+- name: "PATH 설정을 점검할 주요 환경 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/profile
+    - /root/.profile
+    - /root/.bash_profile
+    - /root/.bashrc
+  register: path_files_stat
+
+- name: "PATH 변수 내 중간에 위치한 '.' 제거"
+  ansible.builtin.replace:
+    path: "{{ item.stat.path }}"
+    regexp: ':\.:'
+    replace: ':'
+  loop: "{{ path_files_stat.results }}"
+  when: item.stat.exists
+
+- name: "PATH 변수 내 맨 뒤에 위치한 '.' 제거"
+  ansible.builtin.replace:
+    path: "{{ item.stat.path }}"
+    regexp: ':\.$'
+    replace: ''
+  loop: "{{ path_files_stat.results }}"
+  when: item.stat.exists
+
+- name: "PATH 변수 내 맨 앞에 위치한 '.' 제거"
+  ansible.builtin.replace:
+    path: "{{ item.stat.path }}"
+    regexp: 'PATH=\.:'
+    replace: 'PATH='
+  loop: "{{ path_files_stat.results }}"
+  when: item.stat.exists

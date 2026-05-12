@@ -23,3 +23,8 @@
   ansible.builtin.import_tasks: admin_user.yml
   tags:
     - ceph_admin_user
+
+- name: "Ceph SELinux 정책 포함"
+  ansible.builtin.import_tasks: selinux.yml
+  tags:
+    - ceph_selinux

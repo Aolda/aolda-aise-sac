@@ -13,3 +13,8 @@
   ansible.builtin.import_tasks: ip_restrict.yml
   tags:
     - kvm_ip_restrict
+
+- name: "KVM default bridge 정책 포함"
+  ansible.builtin.import_tasks: default_bridge.yml
+  tags:
+    - kvm_default_bridge

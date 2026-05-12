@@ -8,3 +8,8 @@
   ansible.builtin.import_tasks: session_timeout.yml
   tags:
     - kvm_session_timeout
+
+- name: "KVM IP 접근 제한 정책 포함"
+  ansible.builtin.import_tasks: ip_restrict.yml
+  tags:
+    - kvm_ip_restrict

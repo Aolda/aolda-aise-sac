@@ -13,3 +13,8 @@
   ansible.builtin.import_tasks: config.yml
   tags:
     - ceph_config
+
+- name: "CephX 인증 정책 포함"
+  ansible.builtin.import_tasks: auth.yml
+  tags:
+    - ceph_auth

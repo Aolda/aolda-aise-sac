@@ -1,0 +1,84 @@
+---
+- name: "KVM 패치 가능 버전 조회"
+  ansible.builtin.command:
+    argv:
+      - apt-cache
+      - policy
+      - "{{ item }}"
+  loop: "{{ kvm_patch_packages }}"
+  register: kvm_patch_policy_result
+  changed_when: false
+  when: enable_kvm_patch | bool or kvm_patch_mode == 'report'
+  tags:
+    - kvm_patch
+
+- name: "KVM 패치 report"
+  ansible.builtin.debug:
+    msg:
+      - "mode={{ kvm_patch_mode }}"
+      - "packages={{ kvm_patch_packages | join(',') }}"
+      - "allow_reboot={{ kvm_allow_reboot }}"
+      - "drain_compute_before_patch={{ kvm_drain_compute_before_patch }}"
+      - "{{ kvm_patch_policy_result.results | default([]) | map(attribute='stdout_lines') | list }}"
+  when: enable_kvm_patch | bool or kvm_patch_mode == 'report'
+  tags:
+    - kvm_patch
+
+- name: "KVM 보안 패치 적용"
+  ansible.builtin.apt:
+    name: "{{ kvm_patch_packages }}"
+    state: latest
+    update_cache: true
+    only_upgrade: true
+  become: true
+  register: kvm_security_patch_result
+  when:
+    - enable_kvm_patch | bool
+    - security_action_mode == 'enforce'
+    - kvm_patch_mode in ['security_only', 'latest']
+  tags:
+    - kvm_patch
+
+- name: "KVM 특정 버전 패치 적용"
+  ansible.builtin.apt:
+    name: "{{ item.key }}={{ item.value }}"
+    state: present
+    update_cache: true
+    allow_downgrade: true
+  become: true
+  loop: "{{ kvm_target_package_versions | dict2items }}"
+  register: kvm_specific_patch_result
+  when:
+    - enable_kvm_patch | bool
+    - security_action_mode == 'enforce'
+    - kvm_patch_mode == 'specific_version'
+  tags:
+    - kvm_patch
+
+- name: "KVM 재부팅 필요 여부 확인"
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: kvm_reboot_required
+  when: enable_kvm_patch | bool
+  tags:
+    - kvm_patch
+
+- name: "KVM 재부팅 필요 report"
+  ansible.builtin.debug:
+    msg: "reboot_required={{ kvm_reboot_required.stat.exists | default(false) }}, kvm_allow_reboot={{ kvm_allow_reboot }}"
+  when: enable_kvm_patch | bool
+  tags:
+    - kvm_patch
+
+- name: "KVM 패치 후 재부팅"
+  ansible.builtin.reboot:
+    msg: "Reboot triggered by KVM security patch policy"
+    reboot_timeout: 1800
+  become: true
+  when:
+    - enable_kvm_patch | bool
+    - security_action_mode == 'enforce'
+    - kvm_allow_reboot | bool
+    - kvm_reboot_required.stat.exists | default(false)
+  tags:
+    - kvm_patch

@@ -23,3 +23,8 @@
   ansible.builtin.import_tasks: log_backup.yml
   tags:
     - kvm_log_backup
+
+- name: "KVM 패치 정책 포함"
+  ansible.builtin.import_tasks: patch.yml
+  tags:
+    - kvm_patch

@@ -18,3 +18,8 @@
   ansible.builtin.import_tasks: auth.yml
   tags:
     - ceph_auth
+
+- name: "Ceph 관리자 계정 정책 포함"
+  ansible.builtin.import_tasks: admin_user.yml
+  tags:
+    - ceph_admin_user

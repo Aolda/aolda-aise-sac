@@ -1,0 +1,74 @@
+---
+- name: "Ceph 관리자 계정 report"
+  ansible.builtin.debug:
+    msg:
+      - "admin_users={{ ceph_admin_users | join(',') }}"
+      - "admin_groups={{ ceph_admin_groups | join(',') }}"
+      - "sudo_nopasswd={{ ceph_admin_sudo_nopasswd }}"
+      - "disable_root_ssh={{ ceph_disable_root_ssh }}"
+      - "mode={{ security_action_mode }}"
+  when: enable_ceph_admin_user_policy | bool
+  tags:
+    - ceph_admin_user
+
+- name: "Ceph 관리자 그룹 생성"
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ ceph_admin_groups }}"
+  become: true
+  when:
+    - enable_ceph_admin_user_policy | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - ceph_admin_user
+
+- name: "Ceph 관리자 계정 생성"
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: present
+    groups: "{{ ceph_admin_groups }}"
+    append: true
+    shell: /bin/bash
+    create_home: true
+  loop: "{{ ceph_admin_users }}"
+  become: true
+  when:
+    - enable_ceph_admin_user_policy | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - ceph_admin_user
+
+- name: "Ceph 관리자 sudoers 배포"
+  ansible.builtin.template:
+    src: ceph-admin-sudoers.j2
+    dest: "{{ ceph_admin_sudoers_path }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  become: true
+  when:
+    - enable_ceph_admin_user_policy | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - ceph_admin_user
+
+- name: "Ceph root SSH 제한"
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible: ceph-security-baseline
+      PermitRootLogin no
+    dest: /etc/ssh/sshd_config.d/90-ceph-root-login.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  become: true
+  notify: Reload sshd
+  when:
+    - enable_ceph_admin_user_policy | bool
+    - ceph_disable_root_ssh | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - ceph_admin_user

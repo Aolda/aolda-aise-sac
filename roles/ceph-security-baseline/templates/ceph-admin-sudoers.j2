@@ -1,0 +1,4 @@
+# Managed by Ansible: ceph-security-baseline
+{% for user in ceph_admin_users %}
+{{ user }} ALL=(ALL) {% if ceph_admin_sudo_nopasswd | bool %}NOPASSWD:{% endif %} {{ ceph_admin_sudo_commands | join(', ') }}
+{% endfor %}

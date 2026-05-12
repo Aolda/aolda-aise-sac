@@ -18,3 +18,8 @@
   ansible.builtin.import_tasks: password_age.yml
   tags:
     - storage_password_age
+
+- name: "Storage 계정 하드닝 정책 포함"
+  ansible.builtin.import_tasks: accounts.yml
+  tags:
+    - storage_accounts

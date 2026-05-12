@@ -3,3 +3,8 @@
   ansible.builtin.import_tasks: root_ssh.yml
   tags:
     - storage_root_ssh
+
+- name: "Storage 패스워드 복잡도 정책 포함"
+  ansible.builtin.import_tasks: password_complexity.yml
+  tags:
+    - storage_password_complexity

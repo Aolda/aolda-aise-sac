@@ -3,3 +3,8 @@
   ansible.builtin.import_tasks: accounts.yml
   tags:
     - kvm_accounts
+
+- name: "KVM 세션 timeout 정책 포함"
+  ansible.builtin.import_tasks: session_timeout.yml
+  tags:
+    - kvm_session_timeout

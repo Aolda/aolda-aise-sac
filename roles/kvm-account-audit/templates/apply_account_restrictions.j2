@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # KVM 계정 자동 제한 적용 스크립트
-# 용도: 60일 이상 미사용 계정을 자동으로 잠금 처리
+# 용도: 검토 후 지정한 계정을 수동으로 잠금 처리
 # 생성일: {{ ansible_date_time.iso8601 }}
 # 호스트: {{ inventory_hostname }}
 #
@@ -92,7 +92,7 @@ lock_account() {
     
     if usermod -L "$username"; then
         log_info "계정 '$username' 잠금 완료"
-        echo "$username" >> /var/log/kvm_account_audit_actions.log 2>/dev/null || true
+        printf '%s %s locked_by_manual_script\n' "$(date -Is)" "$username" >> {{ kvm_account_action_log_path | quote }} 2>/dev/null || true
         return 0
     else
         log_error "계정 '$username' 잠금 실패"

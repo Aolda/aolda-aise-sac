@@ -1,0 +1,5 @@
+---
+- name: "Storage root SSH 제한 정책 포함"
+  ansible.builtin.import_tasks: root_ssh.yml
+  tags:
+    - storage_root_ssh

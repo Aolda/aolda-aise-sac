@@ -1,0 +1,12 @@
+---
+# Storage host policy overrides.
+# Role defaults stay report-oriented. Override values here after test-host validation.
+
+security_action_mode: report
+
+enable_storage_root_ssh_restrict: true
+enable_storage_password_complexity: true
+enable_storage_account_lock: true
+enable_storage_password_age: false
+enable_storage_account_hardening: true
+storage_account_action: report

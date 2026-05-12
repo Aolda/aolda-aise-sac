@@ -13,3 +13,8 @@
   ansible.builtin.import_tasks: account_lock.yml
   tags:
     - storage_account_lock
+
+- name: "Storage 패스워드 사용 기간 정책 포함"
+  ansible.builtin.import_tasks: password_age.yml
+  tags:
+    - storage_password_age

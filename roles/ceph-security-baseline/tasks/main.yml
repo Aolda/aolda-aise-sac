@@ -3,3 +3,8 @@
   ansible.builtin.import_tasks: keyring.yml
   tags:
     - ceph_keyring
+
+- name: "Ceph SSH key 권한 정책 포함"
+  ansible.builtin.import_tasks: ssh_keys.yml
+  tags:
+    - ceph_ssh_keys

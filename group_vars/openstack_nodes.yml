@@ -1,0 +1,7 @@
+---
+# Override example:
+# network_security_mode: harden
+
+# Override example:
+# os_firewall_icmp_echo_request_limit: 10/second
+# os_firewall_icmp_echo_request_burst: 20

@@ -1,0 +1,97 @@
+---
+- name: Validate network security mode for network hardening
+  ansible.builtin.assert:
+    that:
+      - network_security_mode in ["audit", "harden"]
+    fail_msg: "network_security_mode must be either 'audit' or 'harden'."
+
+- name: Audit RouterOS service status
+  community.routeros.command:
+    commands:
+      - /ip service print detail without-paging
+  register: network_hardening_service_audit
+  changed_when: false
+  when: network_security_mode == "audit"
+
+- name: Audit RouterOS user status
+  community.routeros.command:
+    commands:
+      - /user print detail without-paging
+  register: network_hardening_user_audit
+  changed_when: false
+  when: network_security_mode == "audit"
+
+- name: Audit RouterOS snmp status
+  community.routeros.command:
+    commands:
+      - /snmp print detail without-paging
+  register: network_hardening_snmp_audit
+  changed_when: false
+  when: network_security_mode == "audit"
+
+- name: Audit RouterOS interface status
+  community.routeros.command:
+    commands:
+      - /interface print detail without-paging
+  register: network_hardening_interface_audit
+  changed_when: false
+  when: network_security_mode == "audit"
+
+- name: Show RouterOS audit results
+  ansible.builtin.debug:
+    msg:
+      service: "{{ network_hardening_service_audit.stdout_lines | default([]) }}"
+      user: "{{ network_hardening_user_audit.stdout_lines | default([]) }}"
+      snmp: "{{ network_hardening_snmp_audit.stdout_lines | default([]) }}"
+      interface: "{{ network_hardening_interface_audit.stdout_lines | default([]) }}"
+  when: network_security_mode == "audit"
+
+- name: Require management CIDR overrides for harden mode
+  ansible.builtin.assert:
+    that:
+      - network_hardening_allowed_management_cidrs | length > 0
+    fail_msg: "Set network_hardening_allowed_management_cidrs before running harden mode."
+  when: network_security_mode == "harden"
+
+- name: Restrict ssh management access
+  community.routeros.command:
+    commands:
+      - >-
+        /ip service set [find name={{ network_hardening_ssh_service_name }}]
+        address={{ network_hardening_allowed_management_cidrs | join(",") }}
+  when: network_security_mode == "harden"
+
+- name: Restrict winbox management access
+  community.routeros.command:
+    commands:
+      - >-
+        /ip service set [find name={{ network_hardening_winbox_service_name }}]
+        address={{ network_hardening_allowed_management_cidrs | join(",") }}
+  when: network_security_mode == "harden"
+
+- name: Disable non-required management services
+  community.routeros.command:
+    commands:
+      - /ip service set [find name={{ item }}] disabled=yes
+  loop: "{{ network_hardening_disabled_services }}"
+  when: network_security_mode == "harden"
+
+- name: Apply RouterOS CLI session timeout to selected users
+  community.routeros.command:
+    commands:
+      - >-
+        /user set [find name="{{ item }}"]
+        inactivity-timeout={{ network_hardening_session_timeout }}
+        inactivity-policy={{ network_hardening_session_inactivity_policy }}
+  loop: "{{ network_hardening_session_timeout_users }}"
+  when:
+    - network_security_mode == "harden"
+    - network_hardening_session_timeout_users | length > 0
+
+- name: Disable snmp
+  community.routeros.command:
+    commands:
+      - /snmp set enabled=no
+  when:
+    - network_security_mode == "harden"
+    - network_hardening_disable_snmp

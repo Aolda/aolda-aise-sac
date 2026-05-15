@@ -1,0 +1,17 @@
+---
+network_security_mode: audit
+
+network_hardening_allowed_management_cidrs: []
+network_hardening_disabled_services:
+  - telnet
+  - ftp
+  - www
+  - www-ssl
+  - api
+  - api-ssl
+network_hardening_ssh_service_name: ssh
+network_hardening_winbox_service_name: winbox
+network_hardening_session_timeout_users: []
+network_hardening_session_timeout: 10m
+network_hardening_session_inactivity_policy: logout
+network_hardening_disable_snmp: true

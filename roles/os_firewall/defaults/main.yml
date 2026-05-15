@@ -1,0 +1,6 @@
+---
+network_security_mode: audit
+
+os_firewall_icmp_echo_request_limit: 5/second
+os_firewall_icmp_echo_request_burst: 10
+os_firewall_apply_fragment_drop: true

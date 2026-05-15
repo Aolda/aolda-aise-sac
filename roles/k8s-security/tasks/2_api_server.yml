@@ -1,119 +1,93 @@
 ---
-# roles/k8s-security/tasks/2_api_server.yml
-
-# ==============================================================================
-# 가이드: [Master-가] API Server 비인증 접근 차단 / 권한 제어
-# 조치: 익명 접근 차단, ServiceAccount Lookup 활성화, AlwaysAllow 사용 금지
-# ==============================================================================
+# CHECK: kube-apiserver, kube-scheduler, kube-controller-manager manifest 경로를 확인하세요.
 
 - name: "2-1. API Server 인증/인가 보안 파라미터 적용"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
-    line: "{{ item }}"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
     state: present
-  loop:
-    - "    - --anonymous-auth=false"
-    - "    - --service-account-lookup=true"
-    - "    - --authorization-mode=Node,RBAC"
+  loop: "{{ k8s_apiserver_auth_args }}"
   notify: Restart Kubelet
-
-# ==============================================================================
-# 가이드: [Master-가] API Server 취약한 방식의 인증 사용 제한
-# 조치: --token-auth-file 파라미터 삭제 (정규식으로 찾아 제거)
-# ==============================================================================
 
 - name: "2-2. 취약한 Token 기반 인증 파일 설정 제거"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    path: "{{ k8s_apiserver_manifest }}"
     regexp: '^\s*- --token-auth-file=.*'
     state: absent
   notify: Restart Kubelet
-
-# ==============================================================================
-# 가이드: [Master-가] 서비스 API 외부 오픈 금지
-# 조치: Scheduler와 Controller Manager의 바인딩 주소를 로컬호스트로 제한
-# ==============================================================================
 
 - name: "2-3. Scheduler 및 Controller Manager 외부 오픈 금지 (bind-address)"
   ansible.builtin.lineinfile:
     path: "{{ item.path }}"
     insertafter: "{{ item.after }}"
-    line: "    - --bind-address=127.0.0.1"
+    regexp: '^\s*- --bind-address='
+    line: "    - --bind-address={{ item.bind_address }}"
     state: present
   loop:
-    - { path: '/etc/kubernetes/manifests/kube-scheduler.yaml', after: '    - kube-scheduler' }
-    - { path: '/etc/kubernetes/manifests/kube-controller-manager.yaml', after: '    - kube-controller-manager' }
+    - path: "{{ k8s_scheduler_manifest }}"
+      after: '    - kube-scheduler'
+      bind_address: "{{ k8s_scheduler_bind_address }}"
+    - path: "{{ k8s_controller_manager_manifest }}"
+      after: '    - kube-controller-manager'
+      bind_address: "{{ k8s_controller_manager_bind_address }}"
   notify: Restart Kubelet
-
-# ==============================================================================
-# 가이드: [Master-가] Admission Control Plugin 설정
-# 조치: 불필요한 플러그인 제거 및 필수 보안 플러그인 추가
-# ==============================================================================
 
 - name: "2-4. 필수 Admission Control Plugin 활성화"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
-    # ### [CHECK 1] K8s 버전에 따라 PodSecurityPolicy 대신 PodSecurity를 사용해야 할 수 있습니다. ###
-    line: "    - --enable-admission-plugins=NodeRestriction,AlwaysPullImages,SecurityContextDeny,EventRateLimit,PodSecurity"
+    regexp: '^\s*- --enable-admission-plugins='
+    line: "    - --enable-admission-plugins={{ k8s_apiserver_enable_admission_plugins }}"
     state: present
   notify: Restart Kubelet
 
 - name: "2-5. 취약한 Admission Control Plugin 비활성화"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
-    line: "    - --disable-admission-plugins=NamespaceLifecycle,AlwaysAdmin"
+    regexp: '^\s*- --disable-admission-plugins='
+    line: "    - --disable-admission-plugins={{ k8s_apiserver_disable_admission_plugins }}"
     state: present
   notify: Restart Kubelet
 
 - name: "2-6. Admission Control Config 파일 지정"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
-    # ### [CHECK 2] 실제 Admission Config 파일이 존재하는 경로를 지정해야 합니다. ###
-    line: "    - --admission-control-config-file=/etc/kubernetes/admission-control-config.yaml"
+    regexp: '^\s*- --admission-control-config-file='
+    line: "    - --admission-control-config-file={{ k8s_admission_control_config_file }}"
     state: present
-
-# ==============================================================================
-# 가이드: [Master-가] API server SSL/TLS 및 안전한 암호화 적용
-# 조치: TLS 인증서 경로 및 Cipher Suites 설정
-# ==============================================================================
+  when: k8s_enable_admission_control_config | bool
 
 - name: "2-7. API Server SSL/TLS 및 암호화 수준 강화"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
-    line: "{{ item }}"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
     state: present
-  loop:
-    # ### [CHECK 3] 인증서 경로들이 실제 서버 환경과 일치하는지 확인하세요 ###
-    - "    - --kubelet-certificate-authority=/etc/kubernetes/pki/ca.crt"
-    - "    - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt"
-    - "    - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key"
-    - "    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt"
-    - "    - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key"
-    - "    - --client-ca-file=/etc/kubernetes/pki/ca.crt"
-    - "    - --tls-cipher-suites=TLS_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+  loop: "{{ k8s_apiserver_tls_args }}"
   notify: Restart Kubelet
-
-# ==============================================================================
-# 가이드: [Master-가] API Server 로그 관리 (Audit Log)
-# 조치: 감사 로그 경로 및 보관 정책 설정
-# ==============================================================================
 
 - name: "2-8. API Server Audit(감사) 로그 활성화"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
-    line: "{{ item }}"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
     state: present
   loop:
-    # ### [CHECK 4] 아래 경로에 audit-policy.yaml 파일을 별도로 생성해 두어야 API 서버가 정상 기동됩니다. ###
-    - "    - --audit-policy-file=/etc/kubernetes/audit-policy.yaml"
-    - "    - --audit-log-path=/var/log/kubernetes/audit/audit.log"
-    - "    - --audit-log-maxage=30"
-    - "    - --audit-log-maxbackup=10"
-    - "    - --audit-log-maxsize=100"
+    - regexp: '^\s*- --audit-policy-file='
+      line: '    - --audit-policy-file={{ k8s_audit_policy_file }}'
+    - regexp: '^\s*- --audit-log-path='
+      line: '    - --audit-log-path={{ k8s_audit_log_path }}'
+    - regexp: '^\s*- --audit-log-maxage='
+      line: '    - --audit-log-maxage={{ k8s_audit_log_maxage }}'
+    - regexp: '^\s*- --audit-log-maxbackup='
+      line: '    - --audit-log-maxbackup={{ k8s_audit_log_maxbackup }}'
+    - regexp: '^\s*- --audit-log-maxsize='
+      line: '    - --audit-log-maxsize={{ k8s_audit_log_maxsize }}'
+  when: k8s_enable_audit_log | bool
   notify: Restart Kubelet

@@ -1,31 +1,15 @@
 ---
-# roles/k8s-security/tasks/1_control_plane.yml
-
-# ==============================================================================
-# 가이드: [Master-나] Controller Manager Configuration
-# 조치: kube-controller-manager.yaml 파일 내 인증/TLS 파라미터 추가
-# 주의: 정적 파드(Static Pod) 매니페스트 파일이므로 들여쓰기(띄어쓰기)에 매우 주의해야 합니다.
-# ==============================================================================
+# CHECK: kubeadm 정적 파드 manifest 및 인증서 경로를 대상 Control Plane에서 확인하세요.
 
 - name: "1-1. Controller 인증 및 SSL/TLS 파라미터 설정"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-controller-manager.yaml
-    # 'command:' 하위의 컨테이너 실행 인자 부분에 추가합니다.
+    path: "{{ k8s_controller_manager_manifest }}"
     insertafter: '    - kube-controller-manager'
-    line: "{{ item }}"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
     state: present
-  loop:
-    - "    - --use-service-account-credentials=true"
-    # ### [CHECK 1] 실제 PKI 개인키 경로와 CA 파일 경로를 환경에 맞게 수정해야 합니다 ###
-    - "    - --service-account-private-key-file=/etc/kubernetes/pki/sa.key"
-    - "    - --root-ca-file=/etc/kubernetes/pki/ca.crt"
-    - "    - --feature-gates=RotateKubeletServerCertificate=true"
+  loop: "{{ k8s_controller_manager_args }}"
   notify: Restart Kubelet
-
-# ==============================================================================
-# 가이드: [Master-마] 환경설정 파일 권한 설정
-# 조치: 주요 manifest 및 conf 파일의 소유자 root, 권한 644 이하 설정
-# ==============================================================================
 
 - name: "1-2. Master 노드 주요 환경설정 파일 권한 설정 (644)"
   ansible.builtin.file:
@@ -33,27 +17,12 @@
     owner: root
     group: root
     mode: '0644'
-  loop:
-    - /etc/kubernetes/manifests/kube-apiserver.yaml
-    - /etc/kubernetes/manifests/kube-controller-manager.yaml
-    - /etc/kubernetes/manifests/kube-scheduler.yaml
-    - /etc/kubernetes/manifests/etcd.yaml
-    # ### [CHECK 2] 가이드북에는 manifests 하위로 되어 있으나, 
-    # 일반적인 kubeadm 설치 시 아래 파일들은 /etc/kubernetes/ 바로 아래에 있습니다. 
-    # 실제 서버의 경로를 꼭 확인해 주세요! ###
-    - /etc/kubernetes/admin.conf
-    - /etc/kubernetes/scheduler.conf
-    - /etc/kubernetes/controller-manager.conf
-  ignore_errors: yes # 일부 파일이 없는 환경을 대비해 에러 무시
-
-# ==============================================================================
-# 가이드: [Master-마] 인증서 파일 권한 설정
-# 조치: .crt 파일은 644, .key 파일은 600으로 설정
-# ==============================================================================
+  loop: "{{ k8s_master_config_files }}"
+  ignore_errors: true
 
 - name: "1-3. pki 디렉터리 내 인증서(.crt) 파일 탐색"
   ansible.builtin.find:
-    paths: /etc/kubernetes/pki
+    paths: "{{ k8s_pki_dir }}"
     patterns: "*.crt"
     recurse: yes
   register: crt_files
@@ -68,7 +37,7 @@
 
 - name: "1-5. pki 디렉터리 내 키(.key) 파일 탐색"
   ansible.builtin.find:
-    paths: /etc/kubernetes/pki
+    paths: "{{ k8s_pki_dir }}"
     patterns: "*.key"
     recurse: yes
   register: key_files
@@ -81,23 +50,13 @@
     mode: '0600'
   loop: "{{ key_files.files }}"
 
-# ==============================================================================
-# 가이드: [Master-마] etcd 데이터 디렉터리 권한 설정
-# 조치: /var/lib/etcd 디렉터리 소유자 root, 권한 700 이하 설정
-# ==============================================================================
-
 - name: "1-7. etcd 데이터 디렉터리 권한 700 설정"
   ansible.builtin.file:
-    path: /var/lib/etcd
+    path: "{{ k8s_etcd_data_dir }}"
     state: directory
     owner: root
     group: root
     mode: '0700'
-
-# ==============================================================================
-# 가이드: [Master-바] 최신 보안 패치 적용
-# 조치: 인프라에 직접적인 영향을 주므로, 버전만 체크하여 출력 (수동 패치 권장)
-# ==============================================================================
 
 - name: "1-8. Kubernetes 버전 점검 (보안 패치 확인용)"
   ansible.builtin.command: kubectl version --short

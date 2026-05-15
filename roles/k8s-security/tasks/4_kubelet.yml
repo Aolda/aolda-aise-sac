@@ -1,54 +1,36 @@
 ---
-# roles/k8s-security/tasks/4_kubelet.yml
-
-# ==============================================================================
-# 가이드: [Worker-가] Kubelet 인증/권한 제어 및 Kernel 파라미터 보호
-# 조치: /var/lib/kubelet/config.yaml 파일 수정 (비인증 차단, Webhook 인가, Kernel 보호)
-# ==============================================================================
+# CHECK: kubelet config, systemd drop-in, pki 경로를 대상 Worker에서 확인하세요.
 
 - name: "4-1. Kubelet config.yaml 설정 - 인증(Authentication) 제어"
   ansible.builtin.replace:
-    path: /var/lib/kubelet/config.yaml
-    # yaml 구조상 authentication -> anonymous -> enabled 값을 false로 변경
+    path: "{{ k8s_kubelet_config_file }}"
     regexp: '^(authentication:\n\s*anonymous:\n\s*enabled:\s*)true'
     replace: '\g<1>false'
   notify: Restart Kubelet
 
 - name: "4-2. Kubelet config.yaml 설정 - 인가(Authorization) 제어"
   ansible.builtin.replace:
-    path: /var/lib/kubelet/config.yaml
-    # yaml 구조상 authorization -> mode 값을 AlwaysAllow에서 Webhook으로 변경
+    path: "{{ k8s_kubelet_config_file }}"
     regexp: '^(authorization:\n\s*mode:\s*)AlwaysAllow'
     replace: '\g<1>Webhook'
   notify: Restart Kubelet
 
 - name: "4-3. Kubelet config.yaml 설정 - Kernel 파라미터 보호 활성화"
   ansible.builtin.lineinfile:
-    path: /var/lib/kubelet/config.yaml
+    path: "{{ k8s_kubelet_config_file }}"
     regexp: '^protectKernelDefaults:'
     line: 'protectKernelDefaults: true'
     state: present
   notify: Restart Kubelet
 
-# ==============================================================================
-# 가이드: [Worker-가] Kubelet SSL/TLS 적용
-# 조치: TLS 버전 및 안전한 Cipher Suites 강제 지정
-# ==============================================================================
-
 - name: "4-4. Kubelet config.yaml 설정 - 강력한 TLS Cipher Suites 적용"
   ansible.builtin.lineinfile:
-    path: /var/lib/kubelet/config.yaml
+    path: "{{ k8s_kubelet_config_file }}"
     regexp: '^tlsCipherSuites:'
-    # 가이드북에 명시된 안전한 Cipher 목록 적용
-    line: 'tlsCipherSuites: ["TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305", "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", "TLS_RSA_WITH_AES_256_GCM_SHA384", "TLS_RSA_WITH_AES_128_GCM_SHA256"]'
+    line: "tlsCipherSuites: {{ k8s_kubelet_tls_cipher_suites | to_json }}"
     insertafter: EOF
     state: present
   notify: Restart Kubelet
-
-# ==============================================================================
-# 가이드: [Worker-나] 환경설정 파일 권한 설정
-# 조치: 주요 설정 파일 소유자 root, 권한 644 이하 설정
-# ==============================================================================
 
 - name: "4-5. Kubelet 주요 환경설정 파일 소유권 및 권한 설정 (644)"
   ansible.builtin.file:
@@ -56,22 +38,12 @@
     owner: root
     group: root
     mode: '0644'
-  loop:
-    - /etc/kubernetes/kubelet.conf
-    # OS 환경에 따라 10-kubeadm.conf 경로가 다를 수 있음 (/etc/systemd/system/... 등)
-    - /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
-    - /var/lib/kubelet/config.yaml
-  ignore_errors: yes # 파일이 없는 경로 에러 무시
-
-# ==============================================================================
-# 가이드: [Worker-나] 인증서 파일 권한 설정
-# 조치: 워커 노드의 pki(인증서) 디렉터리 내 .crt 파일 644 설정
-# ==============================================================================
+  loop: "{{ k8s_kubelet_config_files }}"
+  ignore_errors: true
 
 - name: "4-6. 워커 노드 인증서 파일(.crt) 권한 644 설정"
   ansible.builtin.find:
-    # 워커 노드는 보통 /var/lib/kubelet/pki 에 인증서를 보관합니다.
-    paths: /var/lib/kubelet/pki
+    paths: "{{ k8s_kubelet_pki_dir }}"
     patterns: "*.crt,*.pem"
     recurse: yes
   register: worker_crt_files
@@ -83,11 +55,6 @@
     group: root
     mode: '0644'
   loop: "{{ worker_crt_files.files }}"
-
-# ==============================================================================
-# 가이드: [Worker-다] 최신 보안 패치 적용
-# 조치: Master(1번 파일)와 동일하게 버전만 체크하여 디버그 출력
-# ==============================================================================
 
 - name: "4-8. Kubelet 버전 점검 (보안 패치 확인용)"
   ansible.builtin.command: kubelet --version

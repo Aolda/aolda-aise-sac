@@ -1,2 +1,5 @@
 ---
-# handlers file for k8s_security
+- name: Restart Kubelet
+  ansible.builtin.service:
+    name: "{{ k8s_kubelet_service_name }}"
+    state: restarted

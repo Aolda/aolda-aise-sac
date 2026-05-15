@@ -1,80 +1,39 @@
 ---
-# roles/k8s-security/tasks/3_etcd.yml
-
-# ==============================================================================
-# 가이드: [Master-다] etcd 암호화 적용
-# 조치: API Server에서 etcd로 데이터를 저장할 때 암호화하도록 설정
-# ==============================================================================
+# CHECK: etcd manifest, pki, 데이터 디렉터리 경로를 대상 Control Plane에서 확인하세요.
 
 - name: "3-1. API Server의 etcd 저장 데이터 암호화 설정 (encryption-provider-config)"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
-    # ### [CHECK 1] 실제로 암호화 키가 들어있는 설정 파일 경로를 지정해야 합니다. ###
-    line: "    - --encryption-provider-config=/etc/kubernetes/encryption-config.yaml"
+    regexp: '^\s*- --encryption-provider-config='
+    line: "    - --encryption-provider-config={{ k8s_encryption_provider_config }}"
     state: present
+  when: k8s_enable_encryption_provider_config | bool
   notify: Restart Kubelet
-
-# ==============================================================================
-# 가이드: [Master-다] etcd SSL/TLS 적용 (API Server 측면)
-# 조치: API Server가 etcd와 통신할 때 사용할 인증서 설정
-# ==============================================================================
 
 - name: "3-2. API Server의 etcd 연동 통신 TLS 인증서 설정"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/kube-apiserver.yaml
+    path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
-    line: "{{ item }}"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
     state: present
-  loop:
-    # ### [CHECK 2] kubeadm 기본 경로를 기준으로 작성되었습니다. 실제 환경과 비교해 보세요. ###
-    - "    - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt"
-    - "    - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key"
-    - "    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt"
+  loop: "{{ k8s_apiserver_etcd_tls_args }}"
   notify: Restart Kubelet
 
-# ==============================================================================
-# 가이드: [Master-다] etcd SSL/TLS 적용 (etcd 서버 자체 설정)
-# 조치: 클라이언트 인증 강제, 자체 서명 인증서 사용 금지, TLS 파일 지정
-# ==============================================================================
-
-- name: "3-3. etcd 서버 자체 서명 인증서 사용 금지"
+- name: "3-3. etcd 서버 TLS 및 인증 파라미터 적용"
   ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/etcd.yaml
+    path: "{{ k8s_etcd_manifest }}"
     insertafter: '    - etcd'
-    line: "{{ item }}"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
     state: present
-  loop:
-    - "    - --auto-tls=false"
-    - "    - --peer-auto-tls=false"
+  loop: "{{ k8s_etcd_server_args }}"
   notify: Restart Kubelet
-
-- name: "3-4. etcd 클라이언트 및 Peer 인증 강제 및 TLS 인증서 적용"
-  ansible.builtin.lineinfile:
-    path: /etc/kubernetes/manifests/etcd.yaml
-    insertafter: '    - etcd'
-    line: "{{ item }}"
-    state: present
-  loop:
-    - "    - --client-cert-auth=true"
-    # ### [CHECK 3] 단일 노드(etcd server 1대)일 경우 peer 관련 설정은 제외해도 됩니다. ###
-    - "    - --peer-client-cert-auth=true"
-    - "    - --cert-file=/etc/kubernetes/pki/etcd/server.crt"
-    - "    - --key-file=/etc/kubernetes/pki/etcd/server.key"
-    - "    - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt"
-    - "    - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key"
-    - "    - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt"
-  notify: Restart Kubelet
-
-# ==============================================================================
-# 가이드: [Master-마] etcd 데이터 디렉터리 권한 설정
-# 조치: /var/lib/etcd 권한을 700, 소유자를 root로 제한
-# (참고: 1_control_plane.yml에서도 수행했지만 etcd 파트 완결성을 위해 중복 검증)
-# ==============================================================================
 
 - name: "3-5. etcd 데이터 디렉터리 권한 700 및 소유자 root 설정"
   ansible.builtin.file:
-    path: /var/lib/etcd
+    path: "{{ k8s_etcd_data_dir }}"
     state: directory
     owner: root
     group: root

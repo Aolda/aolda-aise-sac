@@ -1,10 +1,5 @@
 ---
-# handlers file for db_security
----
-# roles/db-security/handlers/main.yml
-
 - name: Restart DB Service
   ansible.builtin.service:
-    # ### [CHECK] 실행 중인 서비스 이름 확인 (systemctl list-units --type=service | grep sql) ###
-    name: mariadb
+    name: "{{ db_service_name }}"
     state: restarted

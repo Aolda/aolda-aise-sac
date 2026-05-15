@@ -1,0 +1,27 @@
+---
+db_service_name: mariadb
+db_config_file: /etc/my.cnf
+db_login_unix_socket: /var/lib/mysql/mysql.sock
+db_runtime_user: mysql
+db_runtime_group: mysql
+
+db_test_users:
+  - test
+  - guest
+
+db_regular_users: []
+
+db_password_policy_marker: "# {mark} ANSIBLE MANAGED BLOCK - Password Policy"
+db_logging_marker: "# {mark} ANSIBLE MANAGED BLOCK - Logging"
+
+db_password_policy_block: |
+  plugin-load-add=simple_password_check.so
+  simple_password_check_minimal_length=8
+  simple_password_check_digits=1
+  simple_password_check_letters_same_case=1
+  simple_password_check_other_characters=1
+
+db_log_dir: /var/log/mysql
+db_slow_query_log_file: /var/log/mysql/mariadb-slow.log
+db_error_log_file: /var/log/mysql/error.log
+db_long_query_time: 2

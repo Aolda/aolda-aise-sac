@@ -1,6 +1,4 @@
 ---
-# roles/db-security/tasks/main.yml
-
 - name: "[1-2] 계정 정리 및 패스워드 정책 적용"
   include_tasks: 1_accounts_password.yml
 

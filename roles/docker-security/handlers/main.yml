@@ -1,22 +1,18 @@
 ---
-# roles/docker-security/handlers/main.yml
-
 - name: Restart Docker
   ansible.builtin.service:
-    name: docker
+    name: "{{ docker_service_name }}"
     state: restarted
 
 - name: Reload Docker Daemon
   ansible.builtin.systemd:
-    daemon_reload: yes
-    name: docker
+    daemon_reload: true
+    name: "{{ docker_service_name }}"
     state: reloaded
 
-# [신규 추가] Auditd 재시작
 - name: Restart Auditd
   ansible.builtin.service:
-    name: auditd
+    name: "{{ auditd_service_name }}"
     state: restarted
-    enabled: yes
-  # auditd 재시작 실패 시 에러 무시 (컨테이너 환경 등 특수 상황 대비)
-  ignore_errors: yes
+    enabled: true
+  ignore_errors: true

@@ -1,47 +1,43 @@
 ---
-# roles/docker-security/tasks/3_file_permissions.yml
+# CHECK: Docker systemd unit 및 socket 경로를 대상 OS에서 확인하세요.
 
-# ==============================================================================
-# ### [CHECK] 사전 확인 필요 사항 ###
-# 1. systemd 경로: /lib/systemd/system/ (Ubuntu) 또는 /usr/lib/systemd/system/ (CentOS/RHEL)
-# 2. 소켓 경로: /var/run/docker.sock (일반적)
-# ==============================================================================
+- name: "3-0. Docker systemd 및 socket 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: docker_permission_files
+  loop:
+    - "{{ docker_service_unit_path }}"
+    - "{{ docker_socket_unit_path }}"
+    - "{{ docker_socket_path }}"
 
-# [docker.service 파일 권한]
-# 가이드: root:root / 644
 - name: "3-1. docker.service 소유권(root:root) 및 권한(644) 설정"
   ansible.builtin.file:
-    # ### [CHECK] 실제 서비스 파일 경로 확인 필요 ###
-    path: /lib/systemd/system/docker.service
+    path: "{{ docker_service_unit_path }}"
     owner: root
     group: root
     mode: '0644'
-  
-# [docker.socket 파일 권한]
-# 가이드: root:root / 644
+  when: docker_permission_files.results[0].stat.exists
+
 - name: "3-2. docker.socket 소유권(root:root) 및 권한(644) 설정"
   ansible.builtin.file:
-    # ### [CHECK] 실제 소켓 서비스 파일 경로 확인 필요 ###
-    path: /lib/systemd/system/docker.socket
+    path: "{{ docker_socket_unit_path }}"
     owner: root
     group: root
     mode: '0644'
+  when: docker_permission_files.results[1].stat.exists
 
-# [/etc/docker 디렉터리 권한]
-# 가이드: root:root / 755
 - name: "3-3. /etc/docker 디렉터리 소유권(root:root) 및 권한(755) 설정"
   ansible.builtin.file:
-    path: /etc/docker
+    path: "{{ docker_config_dir }}"
     state: directory
     owner: root
     group: root
     mode: '0755'
 
-# [/var/run/docker.sock 파일 권한]
-# 가이드: root:docker / 660 (매우 중요: 일반 사용자 접근 차단)
 - name: "3-4. Docker 소켓 파일 소유권(root:docker) 및 권한(660) 설정"
   ansible.builtin.file:
-    path: /var/run/docker.sock
+    path: "{{ docker_socket_path }}"
     owner: root
-    group: docker
+    group: "{{ docker_group_name }}"
     mode: '0660'
+  when: docker_permission_files.results[2].stat.exists

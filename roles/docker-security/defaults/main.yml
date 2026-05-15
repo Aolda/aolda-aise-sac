@@ -1,2 +1,38 @@
 ---
-# defaults file for docker_security
+docker_service_name: docker
+docker_group_name: docker
+docker_package_name_debian: docker-ce
+docker_package_name_redhat: docker-ce
+
+auditd_package_name: audit
+auditd_service_name: auditd
+audit_rules_file: /etc/audit/rules.d/audit.rules
+
+docker_allowed_users:
+  - root
+
+docker_content_trust_profile: /etc/profile.d/docker-security.sh
+docker_enable_content_trust: true
+
+docker_config_dir: /etc/docker
+docker_daemon_config_path: /etc/docker/daemon.json
+docker_socket_path: /var/run/docker.sock
+docker_service_unit_path: /lib/systemd/system/docker.service
+docker_socket_unit_path: /lib/systemd/system/docker.socket
+
+docker_audit_watch_paths:
+  - /usr/bin/docker
+  - /var/lib/docker
+  - /etc/docker
+  - /usr/lib/systemd/system/docker.service
+  - /usr/lib/systemd/system/docker.socket
+  - /lib/systemd/system/docker.service
+  - /lib/systemd/system/docker.socket
+  - /etc/default/docker
+  - /etc/sysconfig/docker
+
+docker_daemon_config:
+  no-new-privileges: true
+  userns-remap: default
+  selinux-enabled: true
+  default-pids-limit: 100

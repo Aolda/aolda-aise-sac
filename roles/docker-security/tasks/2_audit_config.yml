@@ -1,43 +1,23 @@
 ---
-# roles/docker-security/tasks/2_audit_config.yml
+# CHECK: auditd 패키지명과 Docker systemd/default 파일 경로를 대상 OS에서 확인하세요.
 
-# ==============================================================================
-# ### [CHECK] 사전 확인 필요 사항 ###
-# 1. auditd 설치 여부: 보통 기본 설치되어 있으나 확인 필요
-# 2. docker.service 위치: /usr/lib/systemd/system/ 또는 /lib/systemd/system/
-# 3. /etc/default/docker 존재 여부: Ubuntu는 존재, CentOS는 /etc/sysconfig/docker 일 수 있음
-# ==============================================================================
-
-# [Audit 1단계] auditd 패키지 설치
 - name: "Auditd 패키지 설치 확인"
   ansible.builtin.package:
-    name: audit
+    name: "{{ auditd_package_name }}"
     state: present
 
-# [Audit 2단계] 감사 대상 파일들이 실제로 존재하는지 확인 (에러 방지용)
 - name: "Docker 관련 파일/디렉터리 존재 여부 확인"
   ansible.builtin.stat:
     path: "{{ item }}"
   register: docker_files_stat
-  loop:
-    - /usr/bin/docker
-    - /var/lib/docker
-    - /etc/docker
-    # ### [CHECK] 시스템의 실제 서비스 파일 경로 확인 필요 (/usr/lib 또는 /lib) ###
-    - /usr/lib/systemd/system/docker.service
-    - /usr/lib/systemd/system/docker.socket
-    # ### [CHECK] OS에 따라 파일명이 다를 수 있음 (CentOS: /etc/sysconfig/docker) ###
-    - /etc/default/docker
+  loop: "{{ docker_audit_watch_paths }}"
 
-# [Audit 3단계] 존재하는 파일에 대해서만 감사 규칙 추가
-# 가이드: -w [파일경로] -k [키워드] (파일 변경/속성 변경 감지)
 - name: "Docker 감사 규칙 추가 (/etc/audit/rules.d/audit.rules)"
   ansible.builtin.lineinfile:
-    path: /etc/audit/rules.d/audit.rules
-    create: yes
-    # 감사 규칙: 해당 경로(-w)를 감시하고, 로그에 'docker'라는 태그(-k)를 붙임
+    path: "{{ audit_rules_file }}"
+    create: true
     line: "-w {{ item.item }} -p wa -k docker"
     state: present
   loop: "{{ docker_files_stat.results }}"
-  when: item.stat.exists  # 파일이 존재할 때만 규칙 추가
+  when: item.stat.exists
   notify: Restart Auditd

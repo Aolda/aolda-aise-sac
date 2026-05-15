@@ -1,46 +1,16 @@
 ---
-# roles/docker-security/tasks/4_daemon_security.yml
-
-# ==============================================================================
-# ### [CHECK] 주의 사항 ###
-# 1. 이 작업은 /etc/docker/daemon.json 파일을 덮어쓰거나 생성합니다.
-# 2. 기존 설정이 있다면 내용을 합쳐야 합니다. (현재는 신규 생성 기준)
-# ==============================================================================
-
-# [추가 권한 획득 제한]
-# 가이드: 컨테이너가 suid 등을 통해 권한 상승을 못하게 제한
-# 조치: daemon.json에 "no-new-privileges": true 설정 추가
+# CHECK: 기존 daemon.json이 있으면 docker_daemon_config에 병합할 설정을 먼저 반영하세요.
 
 - name: "4-1. Docker Daemon 설정 디렉터리 확인"
   ansible.builtin.file:
-    path: /etc/docker
+    path: "{{ docker_config_dir }}"
     state: directory
     mode: '0755'
 
 - name: "4-2. daemon.json 종합 보안 설정 적용"
   ansible.builtin.copy:
-    # ### [CHECK 1] 설정 파일 경로 ###
-    # 대부분 /etc/docker/daemon.json 이 맞지만, 간혹 커스텀 설치 시 다를 수 있습니다.
-    dest: /etc/docker/daemon.json
-    content: |
-      {
-        "no-new-privileges": true,
-        
-        # ### [CHECK 2] userns-remap 사용 여부 ###
-        # "default"로 두면 'dockremap'이라는 계정이 자동 생성되어 매핑됩니다. 
-        # 단, 기존에 호스트의 root 권한을 꼭 써야만 하는 컨테이너가 있다면 작동을 멈출 수 있으니 운영 환경 점검이 필요합니다.
-        "userns-remap": "default",
-        
-        # ### [CHECK 3] OS의 SELinux 활성화 여부 ###
-        # CentOS/RHEL 환경에서 SELinux를 켜고 쓸 때만 true여야 합니다. 
-        # 만약 Ubuntu(AppArmor 사용)이거나, CentOS인데 SELinux를 꺼둔 상태에서 이 값을 true로 주면 도커 서비스가 실행되지 않습니다!
-        "selinux-enabled": true,
-        
-        # ### [CHECK 4] PID 제한 수치 ###
-        # 100은 예시입니다. 컨테이너 하나당 띄울 수 있는 프로세스 개수입니다. 
-        # 무거운 애플리케이션(예: JVM, 다중 워커 프로세스)이 도는 컨테이너라면 이 수치를 500, 1000 등으로 늘려야 할 수 있습니다.
-        "default-pids-limit": 100
-      }
+    dest: "{{ docker_daemon_config_path }}"
+    content: "{{ docker_daemon_config | to_nice_json }}\n"
     owner: root
     group: root
     mode: '0644'

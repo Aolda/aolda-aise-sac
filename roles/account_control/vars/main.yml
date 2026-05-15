@@ -1,7 +1,0 @@
----
-
-# 대상 시스템 주요 설정 파일 경로
-path_sshd_config: '/etc/ssh/sshd_config'
-path_login_defs: '/etc/login.defs'
-path_pam_password: '/etc/pam.d/common-password'
-path_pam_auth: '/etc/pam.d/common-auth' 

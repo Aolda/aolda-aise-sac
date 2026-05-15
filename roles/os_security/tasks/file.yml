@@ -56,6 +56,21 @@
   failed_when: false # find 결과가 없더라도 실패로 처리하지 않음
 
 
+# [TCP Wrapper를 통한 접속 제어]
+- name: TCP Wrapper /etc/hosts.deny에 ALL 차단 설정
+  ansible.builtin.lineinfile:
+    path: /etc/hosts.deny
+    line: 'ALL: ALL'
+    create: yes
+
+- name: TCP Wrapper /etc/hosts.allow에 허용 IP 등록
+  ansible.builtin.lineinfile:
+    path: /etc/hosts.allow
+    line: "sshd : {{ item }}"
+    create: yes
+  loop: "{{ allowed_ssh_ips }}"
+
+
 # [우회 인증 차단]
 - name: "/etc/hosts.equiv 파일 제거"
   ansible.builtin.file:

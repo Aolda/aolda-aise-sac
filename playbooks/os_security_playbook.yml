@@ -1,25 +1,7 @@
 ---
 
-- name: OS 계정 및 인증 통제 보안 조치 실행
-  hosts: lab
+- name: OS 보안 조치 실행
+  hosts: os_hosts
   become: yes
   roles:
-    - ../roles/account_control
-
-- name: 주요 설정 파일 및 디렉터리 권한 통제 영역
-  hosts: lab
-  become: yes
-  roles:
-    - ../roles/file_permission
-
-- name: 불필요한 서비스 및 데몬 통제 영역
-  hosts: lab
-  become: yes
-  roles:
-    - ../roles/service_control
-
-- name: 시스템 유지보수 및 인프라 운영 영역
-  hosts: lab
-  become: yes
-  roles:
-    - ../roles/system_maintenance
+    - ../roles/os_security

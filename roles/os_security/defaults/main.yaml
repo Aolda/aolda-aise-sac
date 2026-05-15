@@ -1,0 +1,168 @@
+---
+
+# [account.yml 변수]
+
+# [SSH 원격 접속 정책]
+sshd_permit_root_login: 'no'
+
+# [패스워드 사용 정책]
+os_pass_max_days: 90
+
+# [패스워드 복잡도 정책 (pam_pwquality)]
+pam_pwquality_retry: 3
+pam_pwquality_minlen: 8
+pam_pwquality_lcredit: -1
+pam_pwquality_ucredit: -1
+pam_pwquality_dcredit: -1
+pam_pwquality_ocredit: -1
+
+# [계정 잠금 임계값 정책]
+pam_deny_count: 5
+pam_unlock_time: 600
+
+# [권한 상승 공격에 악용될 수 있는 취약한 SUID/SGID 파일 목록]
+unnecessary_suid_sgid_files:
+  - /sbin/dump
+  - /sbin/restore
+  - /sbin/unix_chkpwd
+  - /usr/bin/at
+  - /usr/bin/lpq
+  - /usr/bin/lpq-lpd
+  - /usr/bin/lpr
+  - /usr/bin/lpr-lpd
+  - /usr/bin/lprm
+  - /usr/bin/lprm-lpd
+  - /usr/bin/newgrp
+  - /usr/sbin/lpc
+  - /usr/sbin/lpc-lpd
+  - /usr/sbin/traceroute
+
+# 대상 시스템 주요 설정 파일 경로
+path_sshd_config: '/etc/ssh/sshd_config'
+path_login_defs: '/etc/login.defs'
+path_pam_password: '/etc/pam.d/common-password'
+path_pam_auth: '/etc/pam.d/common-auth' 
+
+
+# [file.yml 변수]
+
+# [파일 소유자 및 그룹 정책]
+file_owner_root: 'root'
+file_group_root: 'root'
+
+# [파일 및 디렉터리 접근 권한(Mode) 정책]
+# 일반 설정 파일은 소유자 외 쓰기 방지 (644)
+file_mode_644: '0644'
+
+# 암호 해시 등 민감 파일은 관리자 전용 보호 (400)
+file_mode_400: '0400'
+
+# 중요 디렉터리는 타 사용자 접근 원천 차단 (700)
+dir_mode_700: '0700'
+
+# TCP Wrapper를 통한 접속 제어 (허용 IP 목록)
+allowed_ssh_ips:
+  - "192.168.0.1"        # 운영 환경에 맞게 관리자 IP로 수정
+  - "172.30.1.0/24"      # 허용할 IP 대역 입력
+
+
+# [권한 상승 공격에 악용될 수 있는 취약한 SUID/SGID 파일 목록]
+unnecessary_suid_sgid_files:
+  - /sbin/dump
+  - /sbin/restore
+  - /sbin/unix_chkpwd
+  - /usr/bin/at
+  - /usr/bin/lpq
+  - /usr/bin/lpq-lpd
+  - /usr/bin/lpr
+  - /usr/bin/lpr-lpd
+  - /usr/bin/lprm
+  - /usr/bin/lprm-lpd
+  - /usr/bin/newgrp
+  - /usr/sbin/lpc
+  - /usr/sbin/lpc-lpd
+  - /usr/sbin/traceroute
+
+# 보안 통제 대상 파일 및 디렉터리 경로
+path_passwd: '/etc/passwd'
+path_shadow: '/etc/shadow'
+path_hosts: '/etc/hosts'
+path_services: '/etc/services'
+path_root_dir: '/root'
+path_etc_profile: '/etc/profile'
+
+# 우회 인증 전역 설정 파일 경로
+path_hosts_equiv: '/etc/hosts.equiv'
+
+
+# [service.yml 변수]
+
+# [제거 대상 불필요/취약 패키지 목록]
+# 정보 노출 및 인증 우회 위험이 있는 레거시 서비스 패키지
+unnecessary_packages:
+  - finger
+  - tftpd
+  - talk
+  - ntalk
+  - rsh-server
+  - rsh-client
+  - nis
+  - sendmail
+  - autofs
+
+# [xinetd 기반 비활성화 대상 서비스]
+xinetd_vulnerable_services:
+  - echo
+  - discard
+  - daytime
+  - chargen
+  - rlogin
+  - rsh
+  - rexec
+  - finger
+  - tftp
+  - talk
+  - ntalk
+  - rstatd
+
+# [중지 및 비활성화 대상 독립 서비스 데몬]
+standalone_services_to_disable:
+  - nfs-server
+  - rpcbind
+  - autofs
+  - sendmail
+
+
+# [system.yml 변수]
+
+# [파일 소유자 및 권한 정책]
+file_owner_root: 'root'
+file_group_root: 'root'
+file_mode_644: '0644'
+file_mode_640: '0640'
+
+# [시간대 설정]
+system_timezone: 'Asia/Seoul'
+
+# [최신 보안 패치 자동 적용 여부]
+apply_security_updates: yes
+
+# 시간대 및 동기화 설정 파일 경로
+path_localtime: '/etc/localtime'
+path_timezone: '/etc/timezone'
+path_timesyncd_conf: '/etc/systemd/timesyncd.conf'
+
+# 로그 설정 파일 경로
+path_rsyslog_conf: '/etc/rsyslog.conf'
+
+# 스케줄러(cron) 관련 파일 경로
+path_crontab: '/etc/crontab'
+path_cron_allow: '/etc/cron.allow'
+
+# 타사용자 쓰기 권한 제한 대상 cron 디렉터리 목록
+cron_directories:
+  - /etc/cron.hourly
+  - /etc/cron.daily
+  - /etc/cron.weekly
+  - /etc/cron.monthly
+  - /etc/cron.d

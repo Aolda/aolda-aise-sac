@@ -1,7 +1,0 @@
----
-
-- name: restart xinetd
-  ansible.builtin.service:
-    name: xinetd
-    state: restarted
-  ignore_errors: yes

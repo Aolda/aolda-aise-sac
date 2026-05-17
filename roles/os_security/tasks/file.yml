@@ -90,7 +90,7 @@
 # [취약한 권한 점검]
 - name: "World-writable 파일 검색 및 타 사용자 쓰기 권한(o-w) 제거"
   ansible.builtin.shell: |
-    find / -path /proc -prune -o -path /sys -prune -o -path /tmp -prune -o -path /var/tmp -prune -o -type f -perm -0002 -exec chmod o-w {} +
+    find / -path /proc -prune -o -path /sys -prune -o -path /tmp -prune -o -path /var/tmp -prune -o -type f -perm -0002 -exec chmod o-w {} + 2>/dev/null || true
   args:
     executable: /bin/bash
   register: ww_remove
@@ -116,7 +116,7 @@
     path: "{{ path_root_dir }}"
     owner: "{{ file_owner_root }}"
     group: "{{ file_group_root }}"
-    mode: "{{ dir_mode_700 }}"
+    mode: "{{ file_mode_700 }}"
     state: directory
 
 - name: '소유자나 그룹이 존재하지 않는 파일 및 디렉터리를 root 소유로 일괄 변경'

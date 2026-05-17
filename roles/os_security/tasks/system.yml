@@ -80,12 +80,14 @@
   failed_when: false
 
 - name: "/etc/cron.allow 파일 생성 및 권한 설정 (640 권한)"
-  ansible.builtin.file:
+  ansible.builtin.lineinfile:
     path: "{{ path_cron_allow }}"
+    regexp: '^root$'
+    line: "root"
+    create: yes                   # 파일이 없으면 생성
     owner: "{{ file_owner_root }}"
     group: "{{ file_group_root }}"
     mode: "{{ file_mode_640 }}"
-    state: touch
 
 - name: "cron 관련 주요 디렉터리 존재 여부 확인"
   ansible.builtin.stat:

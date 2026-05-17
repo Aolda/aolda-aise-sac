@@ -24,9 +24,10 @@
     line: "password requisite pam_pwquality.so enforce_for_root retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} lcredit={{ pam_pwquality_lcredit }} ucredit={{ pam_pwquality_ucredit }} dcredit={{ pam_pwquality_dcredit }} ocredit={{ pam_pwquality_ocredit }}"
     state: present
 
-- name: "로그인 실패 시 계정 잠금 임계값 설정"
+- name: "로그인 실패 시 계정 잠금 임계값 설정 (Ubuntu 22.04 faillock 대응)"
   ansible.builtin.lineinfile:
     path: "{{ path_pam_auth }}"
-    regexp: '^auth\s+required\s+pam_tally2.so'
-    line: "auth required pam_tally2.so deny={{ pam_deny_count }} onerr=fail unlock_time={{ pam_unlock_time }}"
+    regexp: '^\s*auth\s+\[success=1\s+default=ignore\]\s+pam_unix.so'
+    insertbefore: '^\s*auth\s+\[success=1\s+default=ignore\]\s+pam_unix.so'
+    line: "auth required pam_faillock.so preauth silent deny={{ pam_deny_count }} unlock_time={{ pam_unlock_time }}"
     state: present

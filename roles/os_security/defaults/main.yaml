@@ -4,6 +4,7 @@
 file_owner_root: 'root'
 file_group_root: 'root'
 
+file_mode_755: '0755'
 file_mode_700: '0700'   # 중요 디렉터리 (관리자 전용)
 file_mode_644: '0644'   # 일반 설정 파일
 file_mode_640: '0640'   # 그룹 읽기 허용 설정 파일

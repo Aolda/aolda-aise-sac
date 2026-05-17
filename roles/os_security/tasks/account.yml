@@ -1,6 +1,27 @@
 ---
 # 계정 및 인증 통제 영역
 
+- name: "OpenSSH 서버 설치 여부 사전 점검"
+  ansible.builtin.shell: dpkg-l | grep -E "^ii" | grep -q "openssh-server"
+  register: ssh_check
+  failed_when: false
+  changed_when: false
+
+- name: "OpenSSH 서버가 없을 경우에만 설치 진행"
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+    update_cache: yes  # 패키지가 없을 때만 캐시를 업데이트하므로 효율적입니다.
+  when: ssh_check.rc != 0
+
+- name: "SSH 권한 분리 디렉토리 생성 확인"
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_755 }}"
+  
 - name: "SSH 설정 파일에서 root 원격 접속 제한"
   ansible.builtin.lineinfile:
     path: "{{ path_sshd_config }}"

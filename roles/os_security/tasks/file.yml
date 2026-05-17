@@ -1,6 +1,18 @@
 ---
 # 주요 설정 파일 및 디렉터리 권한 통제 영역
 
+- name: "netbase 패키지 설치 여부 사전 점검"
+  ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "netbase"
+  register: netbase_check
+  failed_when: false
+  changed_when: false
+
+- name: "netbase 패키지가 없을 경우에만 설치 진행"
+  ansible.builtin.apt:
+    name: netbase
+    state: present
+    update_cache: yes
+  when: netbase_check.rc != 0
 
 # [계정 및 패스워드 파일 보호]
 - name: "/etc/passwd 파일 소유자 및 권한 설정 (644 권한)"

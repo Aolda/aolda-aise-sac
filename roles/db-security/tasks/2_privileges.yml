@@ -4,15 +4,19 @@
 - name: "3-1. 일반 사용자에게서 GRANT OPTION 권한 회수"
   community.mysql.mysql_query:
     login_unix_socket: "{{ db_login_unix_socket }}"
-    query: "REVOKE GRANT OPTION ON *.* FROM '{{ item }}'@'%'"
-  ignore_errors: true
+    query: "REVOKE GRANT OPTION ON *.* FROM '{{ item.name if item is mapping else item }}'@'{{ item.host | default('%') if item is mapping else '%' }}'"
   loop: "{{ db_regular_users }}"
   when: db_regular_users | length > 0
 
 - name: "4-1. mysql.user 테이블에 대한 접근(Select) 권한 회수"
   community.mysql.mysql_query:
     login_unix_socket: "{{ db_login_unix_socket }}"
-    query: "REVOKE SELECT ON mysql.user FROM '{{ item }}'@'%'"
-  ignore_errors: true
+    query: "REVOKE {{ db_user_table_revoke_privileges }} ON mysql.user FROM '{{ item.name if item is mapping else item }}'@'{{ item.host | default('%') if item is mapping else '%' }}'"
   loop: "{{ db_regular_users }}"
+  when: db_regular_users | length > 0
+
+- name: "4-2. 권한 변경 사항 적용"
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ db_login_unix_socket }}"
+    query: "FLUSH PRIVILEGES"
   when: db_regular_users | length > 0

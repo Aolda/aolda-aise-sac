@@ -1,0 +1,56 @@
+---
+# CHECK: MySQL 8 이상에서 caching_sha2_password 적용 가능 여부와 패치 영향도를 확인하세요.
+
+- name: "8-1. 기본 인증 플러그인을 caching_sha2_password로 설정"
+  ansible.builtin.blockinfile:
+    path: "{{ db_config_file }}"
+    marker: "{{ db_authentication_marker }}"
+    insertafter: "[mysqld]"
+    block: |
+      default_authentication_plugin = {{ db_secure_authentication_plugin }}
+  when: db_set_default_authentication_plugin | bool
+  notify: Restart DB Service
+
+- name: "8-2. 지정 DB 계정의 안전한 인증 플러그인 적용"
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ db_login_unix_socket }}"
+    query: "ALTER USER '{{ item.name }}'@'{{ item.host | default('localhost') }}' IDENTIFIED WITH {{ item.plugin | default(db_secure_authentication_plugin) }} BY '{{ item.password }}'"
+  loop: "{{ db_secure_auth_users }}"
+  no_log: true
+  when: db_secure_auth_users | length > 0
+
+- name: "8-3. 인증 플러그인 변경 사항 적용"
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ db_login_unix_socket }}"
+    query: "FLUSH PRIVILEGES"
+  when: db_secure_auth_users | length > 0
+
+- name: "9-1. DB 패키지 최신 보안 패치 적용 (RHEL/CentOS)"
+  ansible.builtin.yum:
+    name: "{{ db_package_name_redhat }}"
+    state: latest
+  when:
+    - db_apply_security_patch | bool
+    - ansible_os_family == "RedHat"
+
+- name: "9-2. DB 패키지 최신 보안 패치 적용 (Debian/Ubuntu)"
+  ansible.builtin.apt:
+    name: "{{ db_package_name_debian }}"
+    state: latest
+    update_cache: true
+  when:
+    - db_apply_security_patch | bool
+    - ansible_os_family == "Debian"
+
+- name: "9-3. DB 버전 확인"
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ db_login_unix_socket }}"
+    query: "SELECT @@VERSION AS version"
+  register: db_version_result
+  changed_when: false
+  failed_when: false
+
+- name: "9-4. DB 버전 출력"
+  ansible.builtin.debug:
+    var: db_version_result.query_result
+  when: db_version_result.query_result is defined

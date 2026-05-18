@@ -10,6 +10,9 @@ audit_rules_file: /etc/audit/rules.d/audit.rules
 
 docker_allowed_users:
   - root
+docker_disallowed_group_users: []
+docker_groups_to_clean:
+  - "{{ docker_group_name }}"
 
 docker_content_trust_profile: /etc/profile.d/docker-security.sh
 docker_enable_content_trust: true
@@ -36,3 +39,12 @@ docker_daemon_config:
   userns-remap: default
   selinux-enabled: true
   default-pids-limit: 100
+
+docker_enable_runtime_container_checks: true
+docker_fail_on_runtime_policy_violation: false
+docker_forbidden_container_process_patterns:
+  - sshd
+  - /usr/sbin/sshd
+docker_privileged_port_threshold: 1024
+docker_required_container_security_opts:
+  - no-new-privileges:true

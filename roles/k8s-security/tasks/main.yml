@@ -18,3 +18,9 @@
 - name: "5. 클러스터 보안 정책(PSA) 설정"
   ansible.builtin.import_tasks: 5_policies.yml
   when: k8s_apply_policies | bool
+
+- name: "6. Pod 보안 설정 점검"
+  ansible.builtin.import_tasks: 6_pod_security_checks.yml
+  when:
+    - k8s_apply_policies | bool
+    - k8s_enable_pod_security_checks | bool

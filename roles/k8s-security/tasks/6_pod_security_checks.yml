@@ -1,0 +1,61 @@
+---
+# CHECK: 기존 Pod는 자동 수정하지 않고 host namespace 및 securityContext 설정만 점검합니다.
+
+- name: "6-1. 전체 Pod 보안 설정 조회"
+  ansible.builtin.command: kubectl get pods --all-namespaces -o json
+  register: k8s_pods_json
+  changed_when: false
+  failed_when: false
+
+- name: "6-2. 전체 Pod 목록 파싱"
+  ansible.builtin.set_fact:
+    k8s_pods: "{{ (k8s_pods_json.stdout | from_json).items | default([]) }}"
+  when: k8s_pods_json.rc == 0
+
+- name: "6-3. host namespace 공유 Pod 경고 출력"
+  ansible.builtin.debug:
+    msg: "Pod {{ item.metadata.namespace }}/{{ item.metadata.name }} shares host namespace: hostNetwork={{ item.spec.hostNetwork | default(false) }}, hostPID={{ item.spec.hostPID | default(false) }}, hostIPC={{ item.spec.hostIPC | default(false) }}"
+  loop: "{{ k8s_pods | default([]) }}"
+  when:
+    - not k8s_fail_on_policy_violation | bool
+    - item.spec.hostNetwork | default(false) or item.spec.hostPID | default(false) or item.spec.hostIPC | default(false)
+
+- name: "6-4. host namespace 공유 Pod 점검"
+  ansible.builtin.assert:
+    that:
+      - not (item.spec.hostNetwork | default(false))
+      - not (item.spec.hostPID | default(false))
+      - not (item.spec.hostIPC | default(false))
+    fail_msg: "Pod {{ item.metadata.namespace }}/{{ item.metadata.name }} shares host namespace."
+    quiet: true
+  loop: "{{ k8s_pods | default([]) }}"
+  when: k8s_fail_on_policy_violation | bool
+
+- name: "6-5. 컨테이너 securityContext 미흡 경고 출력"
+  ansible.builtin.debug:
+    msg: "Container {{ item.0.metadata.namespace }}/{{ item.0.metadata.name }}/{{ item.1.name }} should define restricted securityContext."
+  loop: "{{ k8s_pods | default([]) | subelements('spec.containers', skip_missing=True) }}"
+  vars:
+    container_security_context: "{{ item.1.securityContext | default({}) }}"
+  when:
+    - not k8s_fail_on_policy_violation | bool
+    - container_security_context.allowPrivilegeEscalation | default(true)
+      or not (container_security_context.runAsNonRoot | default(false))
+      or container_security_context.runAsUser | default(0) | int == 0
+      or "ALL" not in (container_security_context.capabilities.drop | default([]))
+      or container_security_context.seccompProfile.type | default("") != "RuntimeDefault"
+
+- name: "6-6. 컨테이너 securityContext 점검"
+  ansible.builtin.assert:
+    that:
+      - not (container_security_context.allowPrivilegeEscalation | default(true))
+      - container_security_context.runAsNonRoot | default(false)
+      - container_security_context.runAsUser | default(0) | int != 0
+      - "'ALL' in (container_security_context.capabilities.drop | default([]))"
+      - container_security_context.seccompProfile.type | default("") == "RuntimeDefault"
+    fail_msg: "Container {{ item.0.metadata.namespace }}/{{ item.0.metadata.name }}/{{ item.1.name }} does not meet restricted securityContext requirements."
+    quiet: true
+  loop: "{{ k8s_pods | default([]) | subelements('spec.containers', skip_missing=True) }}"
+  vars:
+    container_security_context: "{{ item.1.securityContext | default({}) }}"
+  when: k8s_fail_on_policy_violation | bool

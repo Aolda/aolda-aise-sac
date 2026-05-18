@@ -71,7 +71,29 @@
   loop: "{{ k8s_apiserver_tls_args }}"
   notify: Restart Kubelet
 
-- name: "2-8. API Server Audit(감사) 로그 활성화"
+- name: "2-8. API Server Audit 로그 디렉터리 생성"
+  ansible.builtin.file:
+    path: "{{ k8s_audit_log_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  when: k8s_enable_audit_log | bool
+
+- name: "2-9. API Server Audit Policy 파일 생성"
+  ansible.builtin.copy:
+    dest: "{{ k8s_audit_policy_file }}"
+    content: "{{ k8s_audit_policy_content }}"
+    owner: root
+    group: root
+    mode: '0600'
+    backup: true
+  when:
+    - k8s_enable_audit_log | bool
+    - k8s_manage_audit_policy_file | bool
+  notify: Restart Kubelet
+
+- name: "2-10. API Server Audit(감사) 로그 활성화"
   ansible.builtin.lineinfile:
     path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'

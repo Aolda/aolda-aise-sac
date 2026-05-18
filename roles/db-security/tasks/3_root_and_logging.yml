@@ -31,6 +31,10 @@
     marker: "{{ db_logging_marker }}"
     insertafter: "[mysqld]"
     block: |
+      {% if db_enable_general_log | bool %}
+      general_log = 1
+      general_log_file = {{ db_general_log_file }}
+      {% endif %}
       slow_query_log = 1
       slow_query_log_file = {{ db_slow_query_log_file }}
       long_query_time = {{ db_long_query_time }}

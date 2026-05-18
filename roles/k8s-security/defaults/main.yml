@@ -70,13 +70,34 @@ k8s_apiserver_tls_args:
 
 k8s_audit_policy_file: /etc/kubernetes/audit-policy.yaml
 k8s_audit_log_path: /var/log/kubernetes/audit/audit.log
+k8s_audit_log_dir: "{{ k8s_audit_log_path | dirname }}"
 k8s_audit_log_maxage: 30
 k8s_audit_log_maxbackup: 10
 k8s_audit_log_maxsize: 100
 k8s_enable_audit_log: false
+k8s_manage_audit_policy_file: false
+k8s_audit_policy_content: |
+  apiVersion: audit.k8s.io/v1
+  kind: Policy
+  rules:
+    - level: Metadata
 
 k8s_encryption_provider_config: /etc/kubernetes/encryption-config.yaml
 k8s_enable_encryption_provider_config: false
+k8s_manage_encryption_config_file: false
+k8s_encryption_config_secret: ""
+k8s_encryption_config_content: |
+  apiVersion: apiserver.config.k8s.io/v1
+  kind: EncryptionConfiguration
+  resources:
+    - resources:
+        - secrets
+      providers:
+        - aescbc:
+            keys:
+              - name: key1
+                secret: {{ k8s_encryption_config_secret }}
+        - identity: {}
 
 k8s_apiserver_etcd_tls_args:
   - regexp: '^\s*- --etcd-certfile='
@@ -127,3 +148,5 @@ k8s_psa_namespace: default
 k8s_psa_enforce_level: restricted
 k8s_psa_warn_level: restricted
 k8s_secure_pod_template_path: /etc/kubernetes/secure-pod-template.yaml
+k8s_enable_pod_security_checks: true
+k8s_fail_on_policy_violation: false

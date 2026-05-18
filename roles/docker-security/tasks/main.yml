@@ -10,3 +10,7 @@
 
 - name: "[14] 컨테이너 추가 권한 획득 제한 (Daemon 설정)"
   include_tasks: 4_daemon_security.yml
+
+- name: "[15-17] 컨테이너 런타임 보안 점검"
+  include_tasks: 5_container_runtime_checks.yml
+  when: docker_enable_runtime_container_checks | bool

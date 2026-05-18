@@ -1,7 +1,32 @@
 ---
 # CHECK: etcd manifest, pki, 데이터 디렉터리 경로를 대상 Control Plane에서 확인하세요.
 
-- name: "3-1. API Server의 etcd 저장 데이터 암호화 설정 (encryption-provider-config)"
+- name: "3-1. etcd 저장 데이터 암호화 설정 파일 생성"
+  ansible.builtin.copy:
+    dest: "{{ k8s_encryption_provider_config }}"
+    content: "{{ k8s_encryption_config_content }}"
+    owner: root
+    group: root
+    mode: '0600'
+    backup: true
+  no_log: true
+  when:
+    - k8s_enable_encryption_provider_config | bool
+    - k8s_manage_encryption_config_file | bool
+    - k8s_encryption_config_secret | length > 0
+  notify: Restart Kubelet
+
+- name: "3-2. 암호화 설정 파일 관리 조건 확인"
+  ansible.builtin.assert:
+    that:
+      - k8s_encryption_config_secret | length > 0
+    fail_msg: "k8s_encryption_config_secret is required when k8s_manage_encryption_config_file is true."
+    quiet: true
+  when:
+    - k8s_enable_encryption_provider_config | bool
+    - k8s_manage_encryption_config_file | bool
+
+- name: "3-3. API Server의 etcd 저장 데이터 암호화 설정 (encryption-provider-config)"
   ansible.builtin.lineinfile:
     path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
@@ -11,7 +36,7 @@
   when: k8s_enable_encryption_provider_config | bool
   notify: Restart Kubelet
 
-- name: "3-2. API Server의 etcd 연동 통신 TLS 인증서 설정"
+- name: "3-4. API Server의 etcd 연동 통신 TLS 인증서 설정"
   ansible.builtin.lineinfile:
     path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
@@ -21,7 +46,7 @@
   loop: "{{ k8s_apiserver_etcd_tls_args }}"
   notify: Restart Kubelet
 
-- name: "3-3. etcd 서버 TLS 및 인증 파라미터 적용"
+- name: "3-5. etcd 서버 TLS 및 인증 파라미터 적용"
   ansible.builtin.lineinfile:
     path: "{{ k8s_etcd_manifest }}"
     insertafter: '    - etcd'
@@ -31,7 +56,7 @@
   loop: "{{ k8s_etcd_server_args }}"
   notify: Restart Kubelet
 
-- name: "3-5. etcd 데이터 디렉터리 권한 700 및 소유자 root 설정"
+- name: "3-6. etcd 데이터 디렉터리 권한 700 및 소유자 root 설정"
   ansible.builtin.file:
     path: "{{ k8s_etcd_data_dir }}"
     state: directory

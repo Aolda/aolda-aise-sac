@@ -1,0 +1,158 @@
+---
+# CHECK: 실행 중인 컨테이너의 SSH 프로세스, user namespace, SecurityOpt, port, PidsLimit을 검토하세요.
+
+- name: "5-1. Docker CLI 사용 가능 여부 확인"
+  ansible.builtin.command: docker version --format '{{ "{{" }}.Server.Version{{ "}}" }}'
+  register: docker_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: "5-2. 전체 컨테이너 목록 조회"
+  ansible.builtin.command: docker ps --quiet --all
+  register: docker_all_containers
+  changed_when: false
+  failed_when: false
+  when: docker_cli_check.rc == 0
+
+- name: "5-3. 실행 중인 컨테이너 목록 조회"
+  ansible.builtin.command: docker ps --quiet
+  register: docker_running_containers
+  changed_when: false
+  failed_when: false
+  when: docker_cli_check.rc == 0
+
+- name: "5-4. Docker SELinux 보안 옵션 상태 조회"
+  ansible.builtin.command: docker info --format '{{ "{{" }}json .SecurityOptions{{ "}}" }}'
+  register: docker_security_options
+  changed_when: false
+  failed_when: false
+  when: docker_cli_check.rc == 0
+
+- name: "5-5. Docker 데몬 프로세스 SELinux 옵션 조회"
+  ansible.builtin.command: ps -ef
+  register: docker_processes
+  changed_when: false
+  failed_when: false
+
+- name: "5-6. 컨테이너 HostConfig 조회"
+  ansible.builtin.command: "docker inspect --format '{{ \"{{\" }}json .HostConfig{{ \"}}\" }}' {{ item }}"
+  register: docker_container_host_configs
+  changed_when: false
+  failed_when: false
+  loop: "{{ docker_all_containers.stdout_lines | default([]) }}"
+  when: docker_cli_check.rc == 0
+
+- name: "5-7. 컨테이너 포트 매핑 조회"
+  ansible.builtin.command: docker ps --all --format '{{ "{{" }}.ID{{ "}}" }} Ports={{ "{{" }}.Ports{{ "}}" }}'
+  register: docker_container_ports
+  changed_when: false
+  failed_when: false
+  when: docker_cli_check.rc == 0
+
+- name: "5-8. 컨테이너 프로세스 목록 조회"
+  ansible.builtin.command: "docker top {{ item }}"
+  register: docker_container_processes
+  changed_when: false
+  failed_when: false
+  loop: "{{ docker_running_containers.stdout_lines | default([]) }}"
+  when: docker_cli_check.rc == 0
+
+- name: "5-9. 호스트 user namespace 공유 점검"
+  ansible.builtin.assert:
+    that:
+      - (item.stdout | from_json).UsernsMode != "host"
+    fail_msg: "Container {{ item.item }} shares the host user namespace."
+    success_msg: "Container {{ item.item }} does not share the host user namespace."
+    quiet: true
+  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - docker_fail_on_runtime_policy_violation | bool
+
+- name: "5-10. 호스트 user namespace 공유 경고 출력"
+  ansible.builtin.debug:
+    msg: "Container {{ item.item }} shares the host user namespace."
+  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - not docker_fail_on_runtime_policy_violation | bool
+    - (item.stdout | from_json).UsernsMode == "host"
+
+- name: "5-11. 컨테이너 no-new-privileges 적용 점검"
+  ansible.builtin.assert:
+    that:
+      - docker_required_container_security_opts | difference((item.stdout | from_json).SecurityOpt | default([])) | length == 0
+    fail_msg: "Container {{ item.item }} does not include required SecurityOpt values."
+    success_msg: "Container {{ item.item }} includes required SecurityOpt values."
+    quiet: true
+  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - docker_fail_on_runtime_policy_violation | bool
+
+- name: "5-12. 컨테이너 no-new-privileges 경고 출력"
+  ansible.builtin.debug:
+    msg: "Container {{ item.item }} does not include required SecurityOpt values: {{ docker_required_container_security_opts }}"
+  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - not docker_fail_on_runtime_policy_violation | bool
+    - docker_required_container_security_opts | difference((item.stdout | from_json).SecurityOpt | default([])) | length > 0
+
+- name: "5-13. SELinux 보안 옵션 경고 출력"
+  ansible.builtin.debug:
+    msg: "Docker SELinux security option is not visible in docker info or daemon process arguments."
+  when:
+    - docker_cli_check.rc == 0
+    - docker_security_options.stdout is not search('selinux')
+    - docker_processes.stdout is not search('selinux-enabled')
+
+- name: "5-14. SSH 프로세스 실행 컨테이너 점검"
+  ansible.builtin.assert:
+    that:
+      - docker_forbidden_container_process_patterns | select('in', item.stdout) | list | length == 0
+    fail_msg: "Container {{ item.item }} appears to run a forbidden SSH process."
+    success_msg: "Container {{ item.item }} does not show forbidden SSH process patterns."
+    quiet: true
+  loop: "{{ docker_container_processes.results | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - docker_fail_on_runtime_policy_violation | bool
+
+- name: "5-15. SSH 프로세스 실행 컨테이너 경고 출력"
+  ansible.builtin.debug:
+    msg: "Container {{ item.item }} appears to run a forbidden SSH process."
+  loop: "{{ docker_container_processes.results | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - not docker_fail_on_runtime_policy_violation | bool
+    - docker_forbidden_container_process_patterns | select('in', item.stdout) | list | length > 0
+
+- name: "5-16. privileged port 매핑 경고 출력"
+  ansible.builtin.debug:
+    msg: "Review privileged port mapping below {{ docker_privileged_port_threshold }}: {{ item }}"
+  loop: "{{ docker_container_ports.stdout_lines | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - item is regex_search('0\\.0\\.0\\.0:(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->|:::(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->|127\\.0\\.0\\.1:(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->')
+
+- name: "5-17. PIDs cgroup 제한 점검"
+  ansible.builtin.assert:
+    that:
+      - (item.stdout | from_json).PidsLimit | int not in [0, -1]
+    fail_msg: "Container {{ item.item }} does not have an effective PIDs cgroup limit."
+    success_msg: "Container {{ item.item }} has an effective PIDs cgroup limit."
+    quiet: true
+  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - docker_fail_on_runtime_policy_violation | bool
+
+- name: "5-18. PIDs cgroup 제한 경고 출력"
+  ansible.builtin.debug:
+    msg: "Container {{ item.item }} does not have an effective PIDs cgroup limit."
+  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - not docker_fail_on_runtime_policy_violation | bool
+    - (item.stdout | from_json).PidsLimit | int in [0, -1]

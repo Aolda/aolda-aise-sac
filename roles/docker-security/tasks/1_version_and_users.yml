@@ -27,6 +27,26 @@
   loop: "{{ docker_allowed_users }}"
   when: item != 'root'
 
+- name: "2-3. Docker 그룹에서 제거할 사용자 존재 여부 확인"
+  ansible.builtin.command: "id -u {{ item }}"
+  register: docker_disallowed_users_check
+  changed_when: false
+  failed_when: false
+  loop: "{{ docker_disallowed_group_users }}"
+
+- name: "2-4. Docker 그룹에서 불필요한 사용자 제거"
+  ansible.builtin.command: "gpasswd -d {{ item.0.item }} {{ item.1 }}"
+  register: docker_group_remove_result
+  changed_when: docker_group_remove_result.rc == 0
+  failed_when:
+    - docker_group_remove_result.rc != 0
+    - "'is not a member' not in docker_group_remove_result.stderr"
+    - "'does not exist' not in docker_group_remove_result.stderr"
+  loop: "{{ docker_disallowed_users_check.results | product(docker_groups_to_clean) | list }}"
+  when:
+    - docker_disallowed_group_users | length > 0
+    - item.0.rc == 0
+
 - name: "도커 콘텐츠 신뢰성 활성화 (DOCKER_CONTENT_TRUST)"
   ansible.builtin.lineinfile:
     path: "{{ docker_content_trust_profile }}"

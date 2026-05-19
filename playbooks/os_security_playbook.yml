@@ -4,4 +4,4 @@
   hosts: os_hosts
   become: yes
   roles:
-    - ../roles/os_security
+    - ../roles/os-security

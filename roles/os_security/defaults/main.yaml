@@ -1,3 +1,4 @@
+---
 # ==========================================
 # [공통 및 파일 권한 정책]
 # ==========================================
@@ -47,13 +48,20 @@ pam_deny_count: 5
 pam_unlock_time: 600
 
 # TCP Wrapper 접속 제어 (허용 IP)
-allowed_ssh_ips:
-  - "192.168.0.1"
-  - "172.30.1.0/24"
+# 기본값은 빈 리스트([])로 모든 외부 접근이 차단됩니다.
+# 주의: 허용할 IP를 추가하려면 반드시 우측의 대괄호 '[]'를 삭제하고 아래 주석(#)을 해제하세요.
+allowed_ssh_ips: []
+  # 다음과 같은 형태로 허용할 ip 작성
+  # - "192.168.0.1"
+  # - "172.30.1.0/24"
 
 # ==========================================
 # [서비스 및 패키지 관리 정책]
 # ==========================================
+# 필수 주입/보안 인프라 패키지
+package_ssh_server: 'openssh-server'
+package_netbase: 'netbase'
+
 # 제거 대상 취약 패키지
 unnecessary_packages:
   - finger
@@ -93,6 +101,10 @@ standalone_services_to_disable:
 # ==========================================
 system_timezone: 'Asia/Seoul'
 apply_security_updates: yes
+legacy_ntp_packages:
+  - ntp
+  - chrony
+service_timesyncd: 'systemd-timesyncd'
 
 # cron 관리 디렉터리
 cron_directories:
@@ -102,9 +114,17 @@ cron_directories:
   - /etc/cron.monthly
   - /etc/cron.d
 
+# PATH 환경 변수 점검 대상 파일
+path_check_target_files:
+  - /etc/profile
+  - /root/.profile
+  - /root/.bash_profile
+  - /root/.bashrc
+
 # ==========================================
-# [대상 파일 경로 정의]
+# [대상 파일 및 디렉터리 경로 정의]
 # ==========================================
+path_sshd_run_dir: '/run/sshd'
 path_sshd_config: '/etc/ssh/sshd_config'
 path_login_defs: '/etc/login.defs'
 path_pam_password: '/etc/pam.d/common-password'
@@ -115,6 +135,8 @@ path_hosts: '/etc/hosts'
 path_services: '/etc/services'
 path_root_dir: '/root'
 path_etc_profile: '/etc/profile'
+path_hosts_deny: '/etc/hosts.deny'
+path_hosts_allow: '/etc/hosts.allow'
 path_hosts_equiv: '/etc/hosts.equiv'
 path_localtime: '/etc/localtime'
 path_timezone: '/etc/timezone'
@@ -122,3 +144,6 @@ path_timesyncd_conf: '/etc/systemd/timesyncd.conf'
 path_rsyslog_conf: '/etc/rsyslog.conf'
 path_crontab: '/etc/crontab'
 path_cron_allow: '/etc/cron.allow'
+path_xinetd_dir: '/etc/xinetd.d'
+path_vsftpd_conf: '/etc/vsftpd.conf'
+path_proftpd_conf: '/etc/proftpd/proftpd.conf'

@@ -2,14 +2,14 @@
 # 주요 설정 파일 및 디렉터리 권한 통제 영역
 
 - name: "netbase 패키지 설치 여부 사전 점검"
-  ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "netbase"
+  ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "{{ package_netbase }}"
   register: netbase_check
   failed_when: false
   changed_when: false
 
 - name: "netbase 패키지가 없을 경우에만 설치 진행"
   ansible.builtin.apt:
-    name: netbase
+    name: "{{ package_netbase }}"
     state: present
     update_cache: yes
   when: netbase_check.rc != 0
@@ -58,29 +58,35 @@
     state: file
 
 - name: "사용자 홈 디렉터리 내 환경 파일 권한 설정 (644 권한)"
-  # 대상 파일: .profile, .bashrc, .bash_profile 등
   ansible.builtin.shell: |
     find /home /root -maxdepth 1 -type f \( -name ".profile" -o -name ".bashrc" -o -name ".bash_profile" -o -name ".cshrc" -o -name ".kshrc" -o -name ".login" \) -exec chmod 644 {} +
   args:
     executable: /bin/bash
   register: env_file_chmod
   changed_when: env_file_chmod.stdout | length > 0
-  failed_when: false # find 결과가 없더라도 실패로 처리하지 않음
+  failed_when: false 
 
 
 # [TCP Wrapper를 통한 접속 제어]
 - name: TCP Wrapper /etc/hosts.deny에 ALL 차단 설정
   ansible.builtin.lineinfile:
-    path: /etc/hosts.deny
+    path: "{{ path_hosts_deny | default('/etc/hosts.deny') }}"
     line: 'ALL: ALL'
     create: yes
+    owner: "{{ file_owner_root | default('root') }}"
+    group: "{{ file_group_root | default('root') }}"
+    mode: "{{ file_mode_644 | default('0644') }}"
 
-- name: TCP Wrapper /etc/hosts.allow에 허용 IP 등록
+- name: "TCP Wrapper /etc/hosts.allow에 허용 IP 등록"
   ansible.builtin.lineinfile:
-    path: /etc/hosts.allow
+    path: "{{ path_hosts_allow | default('/etc/hosts.allow') }}"
     line: "sshd : {{ item }}"
     create: yes
-  loop: "{{ allowed_ssh_ips }}"
+    owner: "{{ file_owner_root | default('root') }}"
+    group: "{{ file_group_root | default('root') }}"
+    mode: "{{ file_mode_644 | default('0644') }}"
+  loop: "{{ allowed_ssh_ips | default([]) }}"
+  when: allowed_ssh_ips is not none and (allowed_ssh_ips | length > 0)
 
 
 # [우회 인증 차단]
@@ -120,7 +126,7 @@
     path: "{{ item.item }}"
     mode: "u-s,g-s"
   loop: "{{ suid_files_stat.results }}"
-  when: item.stat.exists # 파일이 존재할 때만 실행하여 에러 방지
+  when: item.stat.exists
 
 
 - name: "root 홈 디렉터리 타 사용자 접근 제한 (700 권한)"
@@ -132,7 +138,6 @@
     state: directory
 
 - name: '소유자나 그룹이 존재하지 않는 파일 및 디렉터리를 root 소유로 일괄 변경'
-  # 시스템 주요 디렉터리를 스캔하여 주인이 없는 고아 파일을 안전하게 root:root로 귀속
   ansible.builtin.shell: |
     find /etc /tmp /bin /sbin /home /var \( -nouser -o -nogroup \) -exec chown root:root {} + 2>/dev/null || true
   args:
@@ -140,15 +145,12 @@
   register: orphan_files
   changed_when: orphan_files.stdout | length > 0
 
+
 # [/etc/profile 및 root 환경 파일의 PATH 변수 내 현재 디렉터리('.') 제거]
 - name: "PATH 설정을 점검할 주요 환경 파일 존재 여부 확인"
   ansible.builtin.stat:
     path: "{{ item }}"
-  loop:
-    - /etc/profile
-    - /root/.profile
-    - /root/.bash_profile
-    - /root/.bashrc
+  loop: "{{ path_check_target_files }}"
   register: path_files_stat
 
 - name: "PATH 변수 내 중간에 위치한 '.' 제거"

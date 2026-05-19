@@ -1,32 +1,29 @@
 ---
 # 시스템 유지보수 및 인프라 운영 영역
 
-
 # [시간대(Timezone) 및 동기화 데몬 통제 (ntpd, chronyd 사용 X)]
 - name: "불필요/취약 NTP 데몬(ntp, chrony) 패키지 제거 강제"
   ansible.builtin.apt:
-    name:
-      - ntp
-      - chrony
+    name: "{{ legacy_ntp_packages }}"
     state: absent
+    purge: yes
 
 - name: "시스템 시간대(Timezone)를 설정하여 로그 타임라인 무결성 확보"
   ansible.builtin.command: "timedatectl set-timezone {{ system_timezone }}"
-  changed_when: false # 멱등성 유지를 위해 상태 변경 무시
-  failed_when: false # 일부 가상 환경에서 timedatectl 명령어가 없을 경우를 대비해 예외 처리
+  changed_when: false 
+  failed_when: false 
 
 - name: "시간대 설정 파일(/etc/localtime, /etc/timezone) 권한 및 소유자 보호 (644 권한)"
   ansible.builtin.file:
     path: "{{ item }}"
     owner: "{{ file_owner_root }}"
     group: "{{ file_group_root }}"
-    # 심볼릭 링크인 경우를 대비하여 follow 옵션 적용
     mode: "{{ file_mode_644 }}"
     follow: yes
   loop:
     - "{{ path_localtime }}"
     - "{{ path_timezone }}"
-  failed_when: false # 파일이 없는 경우 중단 방지
+  failed_when: false 
 
 - name: "timesyncd.conf 파일 존재 여부 확인"
   ansible.builtin.stat:
@@ -40,15 +37,15 @@
     group: "{{ file_group_root }}"
     mode: "{{ file_mode_644 }}"
     state: file
-  when: timesyncd_conf_stat.stat.exists  # 파일이 존재할 때만 실행하여 에러 방지
+  when: timesyncd_conf_stat.stat.exists 
   notify: restart timesyncd
 
 - name: "systemd-timesyncd 서비스 활성화 및 구동 (NTP 동기화)"
   ansible.builtin.service:
-    name: systemd-timesyncd
+    name: "{{ service_timesyncd }}"
     state: started
     enabled: yes
-  when: timesyncd_conf_stat.stat.exists  # 서비스 환경이 구성되어 있을 때만 실행
+  when: timesyncd_conf_stat.stat.exists 
   failed_when: false 
 
 
@@ -84,7 +81,7 @@
     path: "{{ path_cron_allow }}"
     regexp: '^root$'
     line: "root"
-    create: yes                   # 파일이 없으면 생성
+    create: yes 
     owner: "{{ file_owner_root }}"
     group: "{{ file_group_root }}"
     mode: "{{ file_mode_640 }}"
@@ -100,7 +97,7 @@
     path: "{{ item.item }}"
     mode: "o-w"
   loop: "{{ cron_dirs_stat.results }}"
-  when: item.stat.exists # 디렉터리가 실제로 존재할 경우에만 권한 제거 수행
+  when: item.stat.exists 
 
 
 # [최신 보안 패치 적용]

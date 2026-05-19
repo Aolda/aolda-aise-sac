@@ -1,24 +1,24 @@
 ---
 # 불필요한 서비스 및 데몬 통제 영역
 
-
 # [취약 서비스 패키지 제거]
 - name: "불필요하고 취약한 레거시 패키지 제거"
   ansible.builtin.apt:
     name: "{{ unnecessary_packages }}"
     state: absent
+    purge: yes
 
 
 # [xinetd 기반 서비스 비활성화]
 - name: "xinetd 기반 취약 서비스 구성 파일 존재 여부 확인"
   ansible.builtin.stat:
-    path: "/etc/xinetd.d/{{ item }}"
+    path: "{{ path_xinetd_dir }}/{{ item }}"
   loop: "{{ xinetd_vulnerable_services }}"
   register: xinetd_files_stat
 
 - name: "xinetd 기반 취약 서비스 구성 파일에서 disable=yes 설정"
   ansible.builtin.replace:
-    path: "/etc/xinetd.d/{{ item.item }}"
+    path: "{{ path_xinetd_dir }}/{{ item.item }}"
     regexp: '(?i)disable\s*=\s*no'
     replace: 'disable = yes'
   loop: "{{ xinetd_files_stat.results }}"
@@ -32,20 +32,20 @@
     name: "{{ item }}"
     state: stopped
     enabled: no
-    masked: yes  # 데몬이 수동으로도 켜지지 않도록 마스킹 처리
+    masked: yes
   loop: "{{ standalone_services_to_disable }}"
-  failed_when: false # 서비스가 존재하지 않아 에러가 나더라도 무시하고 진행
+  failed_when: false
 
 
 # [Anonymous FTP 접속 차단]
 - name: "vsftpd 설정 파일 존재 여부 확인"
   ansible.builtin.stat:
-    path: /etc/vsftpd.conf
+    path: "{{ path_vsftpd_conf | default('/etc/vsftpd.conf') }}"
   register: vsftpd_stat
 
 - name: "vsftpd 환경에서 Anonymous FTP 접속 차단 설정"
   ansible.builtin.lineinfile:
-    path: /etc/vsftpd.conf
+    path: "{{ path_vsftpd_conf | default('/etc/vsftpd.conf') }}"
     regexp: '^anonymous_enable='
     line: 'anonymous_enable=NO'
     state: present
@@ -53,12 +53,12 @@
 
 - name: "proftpd 설정 파일 존재 여부 확인"
   ansible.builtin.stat:
-    path: /etc/proftpd/proftpd.conf
+    path: "{{ path_proftpd_conf | default('/etc/proftpd/proftpd.conf') }}"
   register: proftpd_stat
 
 - name: "proftpd 환경에서 Anonymous FTP 접속 차단 설정 (UserAlias 주석 처리)"
   ansible.builtin.replace:
-    path: /etc/proftpd/proftpd.conf
+    path: "{{ path_proftpd_conf | default('/etc/proftpd/proftpd.conf') }}"
     regexp: '^\s*UserAlias\s+anonymous\s+ftp'
     replace: '# UserAlias anonymous ftp'
   when: proftpd_stat.stat.exists

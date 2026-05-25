@@ -68,23 +68,25 @@
 
 
 # [TCP Wrapper를 통한 접속 제어]
-- name: "TCP Wrapper /etc/hosts.allow에 허용 IP 등록"
-  ansible.builtin.lineinfile:
-    path: "{{ path_hosts_allow | default('/etc/hosts.allow') }}"
-    line: "sshd : {{ item }}"
-    create: yes
+- name: "TCP Wrapper /etc/hosts.allow에 허용 IP 등록 (기존 내역 초기화 및 동기화)"
+  ansible.builtin.copy:
+    dest: "{{ path_hosts_allow | default('/etc/hosts.allow') }}"
+    content: |
+      # Ansible Managed File (TCP Wrapper Allow List)
+      {% for ip in allowed_ssh_ips | default([]) %}
+      sshd : {{ ip }}
+      {% endfor %}
     owner: "{{ file_owner_root | default('root') }}"
     group: "{{ file_group_root | default('root') }}"
     mode: "{{ file_mode_644 | default('0644') }}"
-  loop: "{{ allowed_ssh_ips | default([]) }}"
-  when: allowed_ssh_ips is not none and (allowed_ssh_ips | length > 0)
 
 
-- name: "TCP Wrapper /etc/hosts.deny에 ALL 차단 설정"
-  ansible.builtin.lineinfile:
-    path: "{{ path_hosts_deny | default('/etc/hosts.deny') }}"
-    line: 'ALL: ALL'
-    create: yes
+- name: "TCP Wrapper /etc/hosts.deny에 ALL 차단 설정 (기존 내역 초기화 및 동기화)"
+  ansible.builtin.copy:
+    dest: "{{ path_hosts_deny | default('/etc/hosts.deny') }}"
+    content: |
+      # Ansible Managed File (TCP Wrapper Deny All)
+      ALL: ALL
     owner: "{{ file_owner_root | default('root') }}"
     group: "{{ file_group_root | default('root') }}"
     mode: "{{ file_mode_644 | default('0644') }}"

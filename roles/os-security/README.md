@@ -27,6 +27,7 @@ KISA 주요정보통신기반시설 기술적 취약점 분석·평가 가이드
 * 취약 패키지들이 설정 파일까지 완전히 제거(`purge`)되며, `nfs-server` 등은 수동 구동도 차단되도록 마스킹(`masked`) 처리됩니다.
 * 시간 동기화 오탐 유발 데몬(`ntp`, `chrony`)이 삭제되고 가상화 최적화 데몬인 `systemd-timesyncd` 자동 동기화 체계로 변경됩니다.
 * `/etc/crontab` 권한이 `0640`으로 조율되고, 새로 생성된 `/etc/cron.allow` 화이트리스트에 의해 명시된 사용자(root)만 예약 작업을 수행할 수 있도록 제한됩니다.
+* 물리 디스크(ext4, xfs)만을 정밀 타겟팅하여 가상 파일 시스템 오탐 없이 World-writable 취약점을 제거합니다.
 
 ## 변수 설명
 
@@ -59,6 +60,8 @@ KISA 주요정보통신기반시설 기술적 취약점 분석·평가 가이드
 | `file_mode_400` | `0400` | 기타 초민감 정보 관리를 위한 관리자 전용 읽기 권한입니다. |
 | `allowed_ssh_ips` | `[]` | hosts.allow에 등록되어 방화벽을 통과할 안전한 관리자 네트워크 IP/대역 리스트입니다. (빈 값 가능) |
 | `unnecessary_suid_sgid_files` | (취약 바이너리 목록) | 권한 상승 취약점 악용을 막기 위해 SUID/SGID 비트를 제거할 실행 파일 경로 목록입니다. |
+| `os_scan_fstypes` | `-fstype ext4 -o -fstype xfs` | 가상 파일 시스템(/sys, /proc 등) 오탐 방지를 위해 World-writable 점검 시 스캔을 허용할 물리 디스크 타입들입니다. |
+| `os_scan_exclude_paths` | `-path /tmp -prune -o -path /var/tmp -prune` | World-writable 점검 시 정상적인 OS 런타임 보장을 위해 내부 스캔을 건너뛸(prune) 임시 디렉터리 조건입니다. |
 
 ### 3. 서비스 통제 정책 변수 (`service.yml` 및 `account.yml` 연계)
 

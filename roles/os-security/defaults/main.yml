@@ -116,6 +116,7 @@ apply_security_updates: yes
 legacy_ntp_packages:
   - ntp
   - chrony
+package_timesyncd: 'systemd-timesyncd'
 service_timesyncd: 'systemd-timesyncd'
 
 # cron 관리 디렉터리

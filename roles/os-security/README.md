@@ -25,7 +25,7 @@ KISA 주요정보통신기반시설 기술적 취약점 분석·평가 가이드
 * `/etc/shadow` 권한이 우분투 내부 인증 도우미(`unix_chkpwd`) 호환성을 위해 `0640` 및 `shadow` 그룹으로 조율되어, 로컬 인증 기능은 보존하면서 외부로의 해시 유출을 방어합니다.
 * `hosts.deny`에 `ALL: ALL`이 주입되어 화이트리스트 IP 외의 SSH 접근이 원천 차단됩니다.
 * 취약 패키지들이 설정 파일까지 완전히 제거(`purge`)되며, `nfs-server` 등은 수동 구동도 차단되도록 마스킹(`masked`) 처리됩니다.
-* 시간 동기화 오탐 유발 데몬(`ntp`, `chrony`)이 삭제되고 가상화 최적화 데몬인 `systemd-timesyncd` 자동 동기화 체계로 변경됩니다.
+* 시간 동기화 오탐 유발 데몬(ntp, chrony)이 완전 삭제되며, 클라우드 최소 이미지 환경을 고려하여 systemd-timesyncd 패키지의 명시적 설치 및 커널 단위의 자동 동기화(set-ntp true)가 강제 적용됩니다.
 * `/etc/crontab` 권한이 `0640`으로 조율되고, 새로 생성된 `/etc/cron.allow` 화이트리스트에 의해 명시된 사용자(root)만 예약 작업을 수행할 수 있도록 제한됩니다.
 * 물리 디스크(ext4, xfs)만을 정밀 타겟팅하여 가상 파일 시스템 오탐 없이 World-writable 취약점을 제거합니다.
 
@@ -81,6 +81,7 @@ KISA 주요정보통신기반시설 기술적 취약점 분석·평가 가이드
 | `system_timezone` | `Asia/Seoul` | 중앙 로그 보존 및 타임라인 정렬을 위해 강제 설정할 인프라 기준 시간대입니다. |
 | `apply_security_updates` | `yes` | 인프라 배포 시점에 알려진 취약점을 자동 방어하기 위한 최신 패키지 디스트 업데이트 여부입니다. |
 | `legacy_ntp_packages` | `[ntp, chrony]` | 중복 동기화 오탐 방지를 위해 확실히 제거할 구형 타임 데몬 리스트입니다. |
+| `package_timesyncd` | `systemd-timesyncd` | 가상화 인프라 무결성을 위해 명시적으로 설치를 보장할 표준 타임 데몬 패키지명입니다. |
 | `service_timesyncd` | `systemd-timesyncd` | 가상화 인프라 무결성을 위해 구동 및 보장할 최종 타임 데몬 서비스명입니다. |
 | `cron_directories` | `[/etc/cron.hourly, ...]` | 악의적인 백도어 유지를 방어하기 위해 타 사용자 쓰기 권한(o-w)을 일괄 거부할 cron 경로 폴더 리스트입니다. |
 | `path_check_target_files` | `[/etc/profile, ...]` | PATH 변수 내 `.` 관리를 위해 순회 스캔할 핵심 셸 환경 파일 리스트입니다. |

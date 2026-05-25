@@ -29,6 +29,16 @@ unnecessary_suid_sgid_files:
   - /usr/sbin/lpc-lpd
   - /usr/sbin/traceroute
 
+
+# ==========================================
+# [파일 시스템 및 보안 스캔 정책]
+# ==========================================
+# 탐색을 수행할 물리 디스크 파일 시스템 타입 조건
+os_scan_fstypes: "-fstype ext4 -o -fstype xfs"
+# 탐색에서 내용 스캔을 완전히 배제(prune)할 임시 디렉터리 경로 조건
+os_scan_exclude_paths: "-path /tmp -prune -o -path /var/tmp -prune"
+
+
 # ==========================================
 # [계정 및 인증 정책]
 # ==========================================

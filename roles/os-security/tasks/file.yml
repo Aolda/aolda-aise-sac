@@ -107,9 +107,9 @@
 
 
 # [취약한 권한 점검]
-- name: "World-writable 파일 검색 및 타 사용자 쓰기 권한(o-w) 제거"
+- name: "물리 디스크 내 World-writable 파일 검색 및 쓰기 권한(o-w) 제거"
   ansible.builtin.shell: |
-    find / -path /proc -prune -o -path /sys -prune -o -path /tmp -prune -o -path /var/tmp -prune -o -type f -perm -0002 -exec chmod o-w {} + 2>/dev/null || true
+    find / \( {{ os_scan_fstypes | default('-fstype ext4 -o -fstype xfs') }} \) \( {{ os_scan_exclude_paths | default('-path /tmp -prune -o -path /var/tmp -prune') }} -o -type f -perm -0002 -exec chmod o-w {} + \) 2>/dev/null || true
   args:
     executable: /bin/bash
   register: ww_remove

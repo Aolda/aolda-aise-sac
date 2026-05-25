@@ -46,13 +46,6 @@
   environment:
     DEBIAN_FRONTEND: noninteractive
 
-- name: "패스워드 복잡도 정책 및 root 적용 강제"
-  ansible.builtin.lineinfile:
-    path: "{{ path_pam_password }}"
-    regexp: '^password\s+requisite\s+pam_pwquality.so'
-    line: "password requisite pam_pwquality.so enforce_for_root retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} lcredit={{ pam_pwquality_lcredit }} ucredit={{ pam_pwquality_ucredit }} dcredit={{ pam_pwquality_dcredit }} ocredit={{ pam_pwquality_ocredit }}"
-    state: present
-
 
 # [faillock 인증 사슬 붕괴 방지: 우분투 표준 프로필 방식 도입]
 
@@ -71,6 +64,16 @@
           [default=die] pam_faillock.so authfail deny={{ pam_deny_count | default(5) }} unlock_time={{ pam_unlock_time | default(600) }}
           sufficient pam_faillock.so authsucc deny={{ pam_deny_count | default(5) }} unlock_time={{ pam_unlock_time | default(600) }}
 
-- name: "우분투 PAM 프레임워크에 커스텀 faillock 정책 적용"
-  ansible.builtin.command: pam-auth-update --enable custom-faillock
+- name: "우분투 PAM 프레임워크에 커스텀 faillock 정책 강제 적용"
+  ansible.builtin.command: pam-auth-update --enable custom-faillock --force
+  environment:
+    DEBIAN_FRONTEND: noninteractive
   changed_when: false
+
+
+- name: "패스워드 복잡도 정책 및 root 적용 강제"
+  ansible.builtin.lineinfile:
+    path: "{{ path_pam_password }}"
+    regexp: '^password\s+requisite\s+pam_pwquality.so'
+    line: "password requisite pam_pwquality.so enforce_for_root retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} lcredit={{ pam_pwquality_lcredit }} ucredit={{ pam_pwquality_ucredit }} dcredit={{ pam_pwquality_dcredit }} ocredit={{ pam_pwquality_ocredit }}"
+    state: present

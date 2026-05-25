@@ -4,6 +4,7 @@
 # ==========================================
 file_owner_root: 'root'
 file_group_root: 'root'
+file_group_shadow: 'shadow'
 
 file_mode_755: '0755'
 file_mode_700: '0700'   # 중요 디렉터리 (관리자 전용)
@@ -61,6 +62,7 @@ allowed_ssh_ips: []
 # 필수 주입/보안 인프라 패키지
 package_ssh_server: 'openssh-server'
 package_netbase: 'netbase'
+package_pam_pwquality: 'libpam-pwquality'
 
 # 제거 대상 취약 패키지
 unnecessary_packages:
@@ -147,3 +149,4 @@ path_cron_allow: '/etc/cron.allow'
 path_xinetd_dir: '/etc/xinetd.d'
 path_vsftpd_conf: '/etc/vsftpd.conf'
 path_proftpd_conf: '/etc/proftpd/proftpd.conf'
+path_pam_faillock_conf: '/usr/share/pam-configs/custom-faillock'

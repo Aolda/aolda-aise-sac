@@ -1,0 +1,16 @@
+---
+horizon_security_restart_service: false
+horizon_security_validate_after_apply: true
+horizon_security_service_name: apache2
+
+horizon_security_settings_file: /etc/openstack-dashboard/local_settings.py
+horizon_security_config_owner: root
+horizon_security_config_group: horizon
+horizon_security_config_mode: "0640"
+
+horizon_security_enable_secure_cookie: false
+horizon_security_validate_certs: true
+horizon_security_ca_cert: ""
+horizon_security_https_endpoint: ""
+horizon_security_tls_status_codes: [200, 300, 401, 403]
+horizon_security_password_validator: django.contrib.auth.password_validation.UserAttributeSimilarityValidator

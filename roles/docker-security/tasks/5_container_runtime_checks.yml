@@ -134,9 +134,22 @@
   loop: "{{ docker_container_ports.stdout_lines | default([]) }}"
   when:
     - docker_cli_check.rc == 0
+    - not docker_fail_on_runtime_policy_violation | bool
     - item is regex_search('0\\.0\\.0\\.0:(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->|:::(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->|127\\.0\\.0\\.1:(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->')
 
-- name: "5-17. PIDs cgroup 제한 점검"
+- name: "5-17. privileged port 매핑 점검"
+  ansible.builtin.assert:
+    that:
+      - item is not regex_search('0\\.0\\.0\\.0:(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->|:::(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->|127\\.0\\.0\\.1:(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->')
+    fail_msg: "Container exposes a privileged host port below {{ docker_privileged_port_threshold }}: {{ item }}"
+    success_msg: "Container does not expose a privileged host port: {{ item }}"
+    quiet: true
+  loop: "{{ docker_container_ports.stdout_lines | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - docker_fail_on_runtime_policy_violation | bool
+
+- name: "5-18. PIDs cgroup 제한 점검"
   ansible.builtin.assert:
     that:
       - (item.stdout | from_json).PidsLimit | int not in [0, -1]
@@ -148,7 +161,7 @@
     - docker_cli_check.rc == 0
     - docker_fail_on_runtime_policy_violation | bool
 
-- name: "5-18. PIDs cgroup 제한 경고 출력"
+- name: "5-19. PIDs cgroup 제한 경고 출력"
   ansible.builtin.debug:
     msg: "Container {{ item.item }} does not have an effective PIDs cgroup limit."
   loop: "{{ docker_container_host_configs.results | default([]) }}"

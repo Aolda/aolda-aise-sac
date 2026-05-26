@@ -1,0 +1,6 @@
+---
+- name: Restart Nova
+  ansible.builtin.service:
+    name: "{{ nova_security_service_name }}"
+    state: restarted
+  when: nova_security_restart_service | bool

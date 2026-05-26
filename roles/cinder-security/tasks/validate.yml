@@ -1,0 +1,9 @@
+---
+- name: "3-8-1. Cinder API 검증"
+  ansible.builtin.shell: ". {{ cinder_security_openrc_path }} && openstack volume service list -f value -c Binary"
+  args:
+    executable: /bin/bash
+  register: cinder_security_api_check
+  changed_when: false
+  environment: "{{ cinder_security_cli_environment }}"
+  when: cinder_security_openrc.stat.exists

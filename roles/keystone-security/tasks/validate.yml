@@ -1,0 +1,14 @@
+---
+- name: "1-6-1. OpenStack CLI 환경 파일 확인"
+  ansible.builtin.stat:
+    path: "{{ keystone_security_openrc_path }}"
+  register: keystone_security_openrc
+
+- name: "1-6-2. Keystone endpoint/API 검증"
+  ansible.builtin.shell: ". {{ keystone_security_openrc_path }} && openstack token issue -f value -c id"
+  args:
+    executable: /bin/bash
+  register: keystone_security_token_check
+  changed_when: false
+  environment: "{{ keystone_security_cli_environment }}"
+  when: keystone_security_openrc.stat.exists

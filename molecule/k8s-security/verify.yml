@@ -1,0 +1,24 @@
+---
+- name: Register target
+  ansible.builtin.import_playbook: ../resources/target-host.yml
+
+- name: Verify Kubernetes security role
+  hosts: molecule_targets
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Check kubectl availability
+      ansible.builtin.command: kubectl version --client
+      register: kubectl_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert kubectl is available
+      ansible.builtin.assert:
+        that:
+          - kubectl_check.rc == 0
+        fail_msg: "kubectl is not available on the target VM."
+
+    - name: Show kubectl check
+      ansible.builtin.debug:
+        var: kubectl_check.stdout

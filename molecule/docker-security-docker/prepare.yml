@@ -1,0 +1,37 @@
+---
+- name: Prepare Docker security container
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Ensure Docker config directory exists
+      ansible.builtin.file:
+        path: /etc/docker
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Ensure fake docker.service exists for permission test
+      ansible.builtin.copy:
+        dest: /lib/systemd/system/docker.service
+        content: |
+          [Unit]
+          Description=Fake Docker Service for Molecule
+          [Service]
+          ExecStart=/bin/true
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Ensure fake docker.socket exists for permission test
+      ansible.builtin.copy:
+        dest: /lib/systemd/system/docker.socket
+        content: |
+          [Unit]
+          Description=Fake Docker Socket for Molecule
+          [Socket]
+          ListenStream=/run/docker.sock
+        owner: root
+        group: root
+        mode: "0644"

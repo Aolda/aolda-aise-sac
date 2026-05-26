@@ -1,0 +1,6 @@
+---
+- name: Restart Neutron
+  ansible.builtin.service:
+    name: "{{ neutron_security_service_name }}"
+    state: restarted
+  when: neutron_security_restart_service | bool

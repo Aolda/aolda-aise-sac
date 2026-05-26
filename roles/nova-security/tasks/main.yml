@@ -1,0 +1,63 @@
+---
+- name: "2-0. Nova 보안 적용 사전 점검"
+  ansible.builtin.import_tasks: precheck.yml
+
+- name: "2-1. Compute 설정파일 소유권/접근권한 설정"
+  ansible.builtin.file:
+    path: "{{ nova_security_config_file }}"
+    owner: "{{ nova_security_config_owner }}"
+    group: "{{ nova_security_config_group }}"
+    mode: "{{ nova_security_config_mode }}"
+
+- name: "2-2. Compute의 인증을 위한 keystone 사용"
+  community.general.ini_file:
+    path: "{{ nova_security_config_file }}"
+    section: DEFAULT
+    option: auth_strategy
+    value: keystone
+    backup: true
+    mode: "{{ nova_security_config_mode }}"
+  when: nova_security_auth_strategy in ['', 'noauth']
+  notify: Restart Nova
+
+- name: "2-3. Compute 인증을 위한 보안프로토콜 사용"
+  community.general.ini_file:
+    path: "{{ nova_security_config_file }}"
+    section: keystone_authtoken
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    backup: true
+    mode: "{{ nova_security_config_mode }}"
+  loop:
+    - option: auth_uri
+      value: "{{ nova_security_keystone_endpoint }}"
+    - option: auth_url
+      value: "{{ nova_security_keystone_endpoint }}"
+    - option: cafile
+      value: "{{ nova_security_ca_cert }}"
+    - option: insecure
+      value: "false"
+  when: nova_security_enable_tls | bool
+  notify: Restart Nova
+
+- name: "2-4. Nova와 Glance의 안전한 통신"
+  community.general.ini_file:
+    path: "{{ nova_security_config_file }}"
+    section: glance
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    backup: true
+    mode: "{{ nova_security_config_mode }}"
+  loop:
+    - option: api_servers
+      value: "{{ nova_security_glance_endpoint }}"
+    - option: cafile
+      value: "{{ nova_security_ca_cert }}"
+    - option: insecure
+      value: "false"
+  when: nova_security_enable_tls | bool
+  notify: Restart Nova
+
+- name: "2-5. Nova 적용 후 검증"
+  ansible.builtin.import_tasks: validate.yml
+  when: nova_security_validate_after_apply | bool

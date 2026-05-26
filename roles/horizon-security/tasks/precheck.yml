@@ -1,0 +1,27 @@
+---
+- name: "6-0-1. Horizon 설정파일 확인"
+  ansible.builtin.stat:
+    path: "{{ horizon_security_settings_file }}"
+  register: horizon_security_settings_stat
+
+- name: "6-0-2. Horizon 설정파일 존재 검증"
+  ansible.builtin.assert:
+    that:
+      - horizon_security_settings_stat.stat.exists
+    fail_msg: "{{ horizon_security_settings_file }} 파일이 없습니다."
+
+- name: "6-0-3. Horizon HTTPS endpoint 형식 검증"
+  ansible.builtin.assert:
+    that:
+      - horizon_security_https_endpoint is match('^https://')
+    fail_msg: "Horizon Secure Cookie 적용 전 horizon_security_https_endpoint 값을 https:// 로 지정하세요."
+  when: horizon_security_enable_secure_cookie | bool
+
+- name: "6-0-4. Horizon HTTPS 환경 및 인증서 검증"
+  ansible.builtin.uri:
+    url: "{{ horizon_security_https_endpoint }}"
+    method: GET
+    validate_certs: "{{ horizon_security_validate_certs }}"
+    ca_path: "{{ horizon_security_ca_cert | default(omit, true) }}"
+    status_code: "{{ horizon_security_tls_status_codes }}"
+  when: horizon_security_enable_secure_cookie | bool

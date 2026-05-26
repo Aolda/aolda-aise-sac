@@ -150,3 +150,29 @@ k8s_psa_warn_level: restricted
 k8s_secure_pod_template_path: /etc/kubernetes/secure-pod-template.yaml
 k8s_enable_pod_security_checks: true
 k8s_fail_on_policy_violation: false
+
+k8s_enable_rbac_controls: true
+k8s_rbac_namespace: "{{ k8s_psa_namespace }}"
+k8s_restricted_service_account: restricted-workload
+k8s_restricted_role_name: restricted-readonly
+k8s_restricted_role_rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+
+k8s_enable_network_policies: false
+k8s_network_policy_namespace: "{{ k8s_psa_namespace }}"
+k8s_default_deny_network_policy_name: default-deny-all
+k8s_allow_dns_network_policy_name: allow-dns-egress
+k8s_enable_dns_egress_policy: true
+
+k8s_enable_secret_controls: true
+k8s_secret_namespace: "{{ k8s_psa_namespace }}"
+k8s_secret_template_path: /etc/kubernetes/secure-secret-template.yaml
+k8s_disable_default_service_account_token_automount: false

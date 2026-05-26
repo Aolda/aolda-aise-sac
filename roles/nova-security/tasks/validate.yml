@@ -1,0 +1,14 @@
+---
+- name: "2-5-1. OpenStack CLI 환경 파일 확인"
+  ansible.builtin.stat:
+    path: "{{ nova_security_openrc_path }}"
+  register: nova_security_openrc
+
+- name: "2-5-2. Nova API 검증"
+  ansible.builtin.shell: ". {{ nova_security_openrc_path }} && openstack compute service list -f value -c Binary"
+  args:
+    executable: /bin/bash
+  register: nova_security_api_check
+  changed_when: false
+  environment: "{{ nova_security_cli_environment }}"
+  when: nova_security_openrc.stat.exists

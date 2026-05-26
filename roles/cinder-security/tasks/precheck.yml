@@ -1,0 +1,57 @@
+---
+- name: "3-0-1. Cinder 설정파일 확인"
+  ansible.builtin.stat:
+    path: "{{ cinder_security_config_file }}"
+  register: cinder_security_config_stat
+
+- name: "3-0-2. Cinder 설정파일 존재 검증"
+  ansible.builtin.assert:
+    that:
+      - cinder_security_config_stat.stat.exists
+    fail_msg: "{{ cinder_security_config_file }} 파일이 없습니다."
+
+- name: "3-0-3. Cinder auth_strategy 현재값 확인"
+  ansible.builtin.slurp:
+    path: "{{ cinder_security_config_file }}"
+  register: cinder_security_config_raw
+
+- name: "3-0-4. Cinder auth_strategy 현재값 저장"
+  ansible.builtin.set_fact:
+    cinder_security_auth_strategy: "{{ (cinder_security_config_raw.content | b64decode | regex_findall('(?im)^\\s*auth_strategy\\s*=\\s*([^#\\s]+)') | first | default('')) | lower }}"
+
+- name: "3-0-5. Cinder TLS endpoint 형식 검증"
+  ansible.builtin.assert:
+    that:
+      - item is match('^https://')
+    fail_msg: "Cinder TLS 적용 전 endpoint 값을 https:// 로 지정하세요."
+  loop:
+    - "{{ cinder_security_keystone_endpoint }}"
+    - "{{ cinder_security_nova_endpoint }}"
+    - "{{ cinder_security_glance_endpoint }}"
+  when: cinder_security_enable_tls | bool
+
+- name: "3-0-6. Cinder HTTPS endpoint 및 인증서 검증"
+  ansible.builtin.uri:
+    url: "{{ item }}"
+    method: GET
+    validate_certs: "{{ cinder_security_validate_certs }}"
+    ca_path: "{{ cinder_security_ca_cert | default(omit, true) }}"
+    status_code: "{{ cinder_security_tls_status_codes }}"
+  loop:
+    - "{{ cinder_security_keystone_endpoint }}"
+    - "{{ cinder_security_nova_endpoint }}"
+    - "{{ cinder_security_glance_endpoint }}"
+  when: cinder_security_enable_tls | bool
+
+- name: "3-0-7. OpenStack CLI 환경 파일 확인"
+  ansible.builtin.stat:
+    path: "{{ cinder_security_openrc_path }}"
+  register: cinder_security_openrc
+  when: cinder_security_enable_volume_encryption | bool or cinder_security_validate_after_apply | bool
+
+- name: "3-0-8. Cinder CLI 필요 조건 검증"
+  ansible.builtin.assert:
+    that:
+      - cinder_security_openrc.stat.exists
+    fail_msg: "{{ cinder_security_openrc_path }} 파일이 필요합니다."
+  when: cinder_security_enable_volume_encryption | bool

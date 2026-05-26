@@ -1,0 +1,22 @@
+---
+- name: Register external Molecule target
+  hosts: localhost
+  gather_facts: false
+  vars:
+    molecule_target_host: "{{ lookup('env', 'MOLECULE_TARGET_HOST') }}"
+    molecule_target_user: "{{ lookup('env', 'MOLECULE_TARGET_USER') }}"
+    molecule_target_private_key_file: "{{ lookup('env', 'MOLECULE_TARGET_PRIVATE_KEY_FILE') }}"
+  tasks:
+    - name: Require explicit target host
+      ansible.builtin.assert:
+        that:
+          - molecule_target_host | length > 0
+        fail_msg: "Set MOLECULE_TARGET_HOST to the VM IP or hostname before running Molecule."
+
+    - name: Add external target to inventory
+      ansible.builtin.add_host:
+        name: molecule-target
+        groups: molecule_targets
+        ansible_host: "{{ molecule_target_host }}"
+        ansible_user: "{{ molecule_target_user | default(omit, true) }}"
+        ansible_ssh_private_key_file: "{{ molecule_target_private_key_file | default(omit, true) }}"

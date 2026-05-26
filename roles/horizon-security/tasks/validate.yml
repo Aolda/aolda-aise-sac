@@ -1,0 +1,14 @@
+---
+- name: "6-4-1. Horizon Dashboard HTTP/API 응답 검증"
+  ansible.builtin.uri:
+    url: "{{ horizon_security_https_endpoint }}"
+    method: GET
+    validate_certs: "{{ horizon_security_validate_certs }}"
+    ca_path: "{{ horizon_security_ca_cert | default(omit, true) }}"
+    status_code: "{{ horizon_security_tls_status_codes }}"
+  when: horizon_security_enable_secure_cookie | bool
+
+- name: "6-4-2. Horizon 설정값 검증"
+  ansible.builtin.command: "grep -E '^(CSRF_COOKIE_SECURE|SESSION_COOKIE_SECURE|SESSION_COOKIE_HTTPONLY|AUTH_PASSWORD_VALIDATORS)' {{ horizon_security_settings_file }}"
+  register: horizon_security_setting_check
+  changed_when: false

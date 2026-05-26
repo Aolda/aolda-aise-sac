@@ -1,0 +1,6 @@
+---
+- name: Restart Glance
+  ansible.builtin.service:
+    name: "{{ glance_security_service_name }}"
+    state: restarted
+  when: glance_security_restart_service | bool

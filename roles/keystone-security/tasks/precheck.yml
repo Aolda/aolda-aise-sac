@@ -1,0 +1,45 @@
+---
+- name: "1-0-1. Keystone 설정파일 확인"
+  ansible.builtin.stat:
+    path: "{{ keystone_security_config_file }}"
+  register: keystone_security_config_stat
+
+- name: "1-0-2. Keystone 설정파일 존재 검증"
+  ansible.builtin.assert:
+    that:
+      - keystone_security_config_stat.stat.exists
+    fail_msg: "{{ keystone_security_config_file }} 파일이 없습니다."
+
+- name: "1-0-3. Keystone TLS endpoint 형식 검증"
+  ansible.builtin.assert:
+    that:
+      - keystone_security_public_endpoint is match('^https://')
+    fail_msg: "Keystone TLS 적용 전 keystone_security_public_endpoint 값을 https:// 로 지정하세요."
+  when: keystone_security_enable_tls | bool
+
+- name: "1-0-4. Keystone HTTPS endpoint 및 인증서 검증"
+  ansible.builtin.uri:
+    url: "{{ keystone_security_public_endpoint }}"
+    method: GET
+    validate_certs: "{{ keystone_security_validate_certs }}"
+    ca_path: "{{ keystone_security_ca_cert | default(omit, true) }}"
+    status_code: "{{ keystone_security_tls_status_codes }}"
+  when: keystone_security_enable_tls | bool
+
+- name: "1-0-5. Keystone TLS 인증서 파일 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: keystone_security_tls_files
+  loop:
+    - "{{ keystone_security_certfile }}"
+    - "{{ keystone_security_keyfile }}"
+    - "{{ keystone_security_cafile }}"
+  when: keystone_security_enable_tls | bool
+
+- name: "1-0-6. Keystone TLS 인증서 파일 존재 검증"
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Keystone TLS 파일이 없습니다: {{ item.item }}"
+  loop: "{{ keystone_security_tls_files.results | default([]) }}"
+  when: keystone_security_enable_tls | bool

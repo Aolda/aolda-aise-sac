@@ -1,0 +1,27 @@
+---
+- name: "4-0-1. Glance 설정파일 확인"
+  ansible.builtin.stat:
+    path: "{{ glance_security_config_file }}"
+  register: glance_security_config_stat
+
+- name: "4-0-2. Glance 설정파일 존재 검증"
+  ansible.builtin.assert:
+    that:
+      - glance_security_config_stat.stat.exists
+    fail_msg: "{{ glance_security_config_file }} 파일이 없습니다."
+
+- name: "4-0-3. Glance TLS endpoint 형식 검증"
+  ansible.builtin.assert:
+    that:
+      - glance_security_keystone_endpoint is match('^https://')
+    fail_msg: "Glance TLS 적용 전 glance_security_keystone_endpoint 값을 https:// 로 지정하세요."
+  when: glance_security_enable_tls | bool
+
+- name: "4-0-4. Glance HTTPS endpoint 및 인증서 검증"
+  ansible.builtin.uri:
+    url: "{{ glance_security_keystone_endpoint }}"
+    method: GET
+    validate_certs: "{{ glance_security_validate_certs }}"
+    ca_path: "{{ glance_security_ca_cert | default(omit, true) }}"
+    status_code: "{{ glance_security_tls_status_codes }}"
+  when: glance_security_enable_tls | bool

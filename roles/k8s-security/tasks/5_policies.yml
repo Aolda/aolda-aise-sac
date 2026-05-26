@@ -9,7 +9,132 @@
   ignore_errors: true
   changed_when: false
 
-- name: "5-2. 안전한 Pod 배포 템플릿(가이드용) 파일 생성"
+- name: "5-2. 제한된 워크로드용 ServiceAccount 생성"
+  ansible.builtin.command: >
+    kubectl create serviceaccount {{ k8s_restricted_service_account }}
+    --namespace {{ k8s_rbac_namespace }}
+    --dry-run=client -o yaml
+  register: k8s_restricted_service_account_manifest
+  changed_when: false
+  when: k8s_enable_rbac_controls | bool
+
+- name: "5-3. 제한된 워크로드용 ServiceAccount 적용"
+  ansible.builtin.command: kubectl apply -f -
+  args:
+    stdin: "{{ k8s_restricted_service_account_manifest.stdout }}"
+  changed_when: true
+  when: k8s_enable_rbac_controls | bool
+
+- name: "5-4. 최소 권한 Role manifest 생성"
+  ansible.builtin.copy:
+    dest: "/tmp/{{ k8s_restricted_role_name }}-role.yaml"
+    owner: root
+    group: root
+    mode: '0600'
+    content: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: {{ k8s_restricted_role_name }}
+        namespace: {{ k8s_rbac_namespace }}
+      rules:
+      {{ k8s_restricted_role_rules | to_nice_yaml(indent=2) | indent(6, true) }}
+  when: k8s_enable_rbac_controls | bool
+
+- name: "5-5. 최소 권한 Role 적용"
+  ansible.builtin.command: "kubectl apply -f /tmp/{{ k8s_restricted_role_name }}-role.yaml"
+  changed_when: true
+  when: k8s_enable_rbac_controls | bool
+
+- name: "5-6. 최소 권한 RoleBinding 적용"
+  ansible.builtin.command: >
+    kubectl create rolebinding {{ k8s_restricted_role_name }}-binding
+    --namespace {{ k8s_rbac_namespace }}
+    --role {{ k8s_restricted_role_name }}
+    --serviceaccount {{ k8s_rbac_namespace }}:{{ k8s_restricted_service_account }}
+    --dry-run=client -o yaml
+  register: k8s_restricted_rolebinding_manifest
+  changed_when: false
+  when: k8s_enable_rbac_controls | bool
+
+- name: "5-7. 최소 권한 RoleBinding 배포"
+  ansible.builtin.command: kubectl apply -f -
+  args:
+    stdin: "{{ k8s_restricted_rolebinding_manifest.stdout }}"
+  changed_when: true
+  when: k8s_enable_rbac_controls | bool
+
+- name: "5-8. default deny NetworkPolicy 적용"
+  ansible.builtin.command: kubectl apply -f -
+  args:
+    stdin: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: {{ k8s_default_deny_network_policy_name }}
+        namespace: {{ k8s_network_policy_namespace }}
+      spec:
+        podSelector: {}
+        policyTypes:
+          - Ingress
+          - Egress
+  changed_when: true
+  when: k8s_enable_network_policies | bool
+
+- name: "5-9. DNS egress 허용 NetworkPolicy 적용"
+  ansible.builtin.command: kubectl apply -f -
+  args:
+    stdin: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: {{ k8s_allow_dns_network_policy_name }}
+        namespace: {{ k8s_network_policy_namespace }}
+      spec:
+        podSelector: {}
+        policyTypes:
+          - Egress
+        egress:
+          - ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+  changed_when: true
+  when:
+    - k8s_enable_network_policies | bool
+    - k8s_enable_dns_egress_policy | bool
+
+- name: "5-10. default ServiceAccount 토큰 자동 마운트 비활성화"
+  ansible.builtin.command: >
+    kubectl patch serviceaccount default
+    --namespace {{ k8s_secret_namespace }}
+    --type merge
+    --patch '{"automountServiceAccountToken": false}'
+  changed_when: true
+  when:
+    - k8s_enable_secret_controls | bool
+    - k8s_disable_default_service_account_token_automount | bool
+
+- name: "5-11. 안전한 Secret 배포 템플릿(가이드용) 파일 생성"
+  ansible.builtin.copy:
+    dest: "{{ k8s_secret_template_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+    content: |
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: secure-secret-example
+        namespace: {{ k8s_secret_namespace }}
+      type: Opaque
+      stringData:
+        username: replace-me
+        password: replace-me
+  when: k8s_enable_secret_controls | bool
+
+- name: "5-12. 안전한 Pod 배포 템플릿(가이드용) 파일 생성"
   ansible.builtin.copy:
     dest: "{{ k8s_secure_pod_template_path }}"
     owner: root

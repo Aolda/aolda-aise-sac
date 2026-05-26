@@ -1,0 +1,43 @@
+---
+- name: "6-0. Horizon 보안 적용 사전 점검"
+  ansible.builtin.import_tasks: precheck.yml
+
+- name: "6-1. Dashboard 설정파일 소유권/접근권한 설정"
+  ansible.builtin.file:
+    path: "{{ horizon_security_settings_file }}"
+    owner: "{{ horizon_security_config_owner }}"
+    group: "{{ horizon_security_config_group }}"
+    mode: "{{ horizon_security_config_mode }}"
+
+- name: "6-2. Dashboard의 CSRF/SESSION Secure Cookie 설정"
+  ansible.builtin.lineinfile:
+    path: "{{ horizon_security_settings_file }}"
+    regexp: "^{{ item.key }}\\s*="
+    line: "{{ item.key }} = {{ item.value }}"
+    backup: true
+    mode: "{{ horizon_security_config_mode }}"
+  loop:
+    - key: CSRF_COOKIE_SECURE
+      value: "True"
+    - key: SESSION_COOKIE_SECURE
+      value: "True"
+    - key: SESSION_COOKIE_HTTPONLY
+      value: "True"
+  when: horizon_security_enable_secure_cookie | bool
+  notify: Restart Horizon
+
+- name: "6-3. Dashboard의 PASSWORD_VALIDATOR 설정"
+  ansible.builtin.blockinfile:
+    path: "{{ horizon_security_settings_file }}"
+    marker: "# {mark} ANSIBLE MANAGED HORIZON PASSWORD VALIDATOR"
+    block: |
+      AUTH_PASSWORD_VALIDATORS = [
+          {'NAME': '{{ horizon_security_password_validator }}'},
+      ]
+    backup: true
+    mode: "{{ horizon_security_config_mode }}"
+  notify: Restart Horizon
+
+- name: "6-4. Horizon 적용 후 검증"
+  ansible.builtin.import_tasks: validate.yml
+  when: horizon_security_validate_after_apply | bool

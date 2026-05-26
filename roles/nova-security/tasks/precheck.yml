@@ -1,0 +1,42 @@
+---
+- name: "2-0-1. Nova 설정파일 확인"
+  ansible.builtin.stat:
+    path: "{{ nova_security_config_file }}"
+  register: nova_security_config_stat
+
+- name: "2-0-2. Nova 설정파일 존재 검증"
+  ansible.builtin.assert:
+    that:
+      - nova_security_config_stat.stat.exists
+    fail_msg: "{{ nova_security_config_file }} 파일이 없습니다."
+
+- name: "2-0-3. Nova auth_strategy 현재값 확인"
+  ansible.builtin.slurp:
+    path: "{{ nova_security_config_file }}"
+  register: nova_security_config_raw
+
+- name: "2-0-4. Nova auth_strategy 현재값 저장"
+  ansible.builtin.set_fact:
+    nova_security_auth_strategy: "{{ (nova_security_config_raw.content | b64decode | regex_findall('(?im)^\\s*auth_strategy\\s*=\\s*([^#\\s]+)') | first | default('')) | lower }}"
+
+- name: "2-0-5. Nova TLS endpoint 형식 검증"
+  ansible.builtin.assert:
+    that:
+      - item is match('^https://')
+    fail_msg: "Nova TLS 적용 전 endpoint 값을 https:// 로 지정하세요."
+  loop:
+    - "{{ nova_security_keystone_endpoint }}"
+    - "{{ nova_security_glance_endpoint }}"
+  when: nova_security_enable_tls | bool
+
+- name: "2-0-6. Nova HTTPS endpoint 및 인증서 검증"
+  ansible.builtin.uri:
+    url: "{{ item }}"
+    method: GET
+    validate_certs: "{{ nova_security_validate_certs }}"
+    ca_path: "{{ nova_security_ca_cert | default(omit, true) }}"
+    status_code: "{{ nova_security_tls_status_codes }}"
+  loop:
+    - "{{ nova_security_keystone_endpoint }}"
+    - "{{ nova_security_glance_endpoint }}"
+  when: nova_security_enable_tls | bool

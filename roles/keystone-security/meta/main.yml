@@ -1,0 +1,8 @@
+---
+galaxy_info:
+  role_name: keystone_security
+  author: aolda-aise-sac
+  description: KISA OpenStack Keystone security controls.
+  license: MIT
+  min_ansible_version: "2.12"
+dependencies: []

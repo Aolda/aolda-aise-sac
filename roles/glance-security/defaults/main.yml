@@ -1,0 +1,17 @@
+---
+glance_security_restart_service: false
+glance_security_validate_after_apply: true
+glance_security_openrc_path: /root/admin-openrc
+glance_security_cli_environment: {}
+glance_security_service_name: glance-api
+
+glance_security_config_file: /etc/glance/glance-api.conf
+glance_security_config_owner: root
+glance_security_config_group: glance
+glance_security_config_mode: "0640"
+
+glance_security_enable_tls: false
+glance_security_validate_certs: true
+glance_security_ca_cert: ""
+glance_security_keystone_endpoint: ""
+glance_security_tls_status_codes: [200, 300, 401, 403]

@@ -1,0 +1,29 @@
+---
+- name: Register target
+  ansible.builtin.import_playbook: ../resources/target-host.yml
+
+- name: Verify Docker security role
+  hosts: molecule_targets
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Verify Docker config directory
+      ansible.builtin.stat:
+        path: "{{ docker_config_dir | default('/etc/docker') }}"
+      register: docker_config_dir_stat
+
+    - name: Assert Docker config directory exists
+      ansible.builtin.assert:
+        that:
+          - docker_config_dir_stat.stat.exists
+          - docker_config_dir_stat.stat.isdir
+
+    - name: Check Docker CLI availability
+      ansible.builtin.command: docker version
+      register: docker_version_check
+      changed_when: false
+      failed_when: false
+
+    - name: Show Docker CLI result
+      ansible.builtin.debug:
+        msg: "docker version rc={{ docker_version_check.rc }}"

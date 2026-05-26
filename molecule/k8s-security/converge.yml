@@ -1,0 +1,14 @@
+---
+- name: Register target
+  ansible.builtin.import_playbook: ../resources/target-host.yml
+
+- name: Converge Kubernetes security role
+  hosts: molecule_targets
+  become: true
+  gather_facts: true
+  vars:
+    k8s_enable_network_policies: "{{ (lookup('env', 'K8S_ENABLE_NETWORK_POLICIES') | default('false', true)) | bool }}"
+    k8s_disable_default_service_account_token_automount: "{{ (lookup('env', 'K8S_DISABLE_DEFAULT_SA_TOKEN_AUTOMOUNT') | default('false', true)) | bool }}"
+    k8s_fail_on_policy_violation: "{{ (lookup('env', 'K8S_FAIL_ON_POLICY_VIOLATION') | default('false', true)) | bool }}"
+  roles:
+    - role: k8s-security

@@ -1,0 +1,14 @@
+---
+- name: "5-5-1. OpenStack CLI 환경 파일 확인"
+  ansible.builtin.stat:
+    path: "{{ neutron_security_openrc_path }}"
+  register: neutron_security_openrc
+
+- name: "5-5-2. Neutron API 검증"
+  ansible.builtin.shell: ". {{ neutron_security_openrc_path }} && openstack network agent list -f value -c Binary"
+  args:
+    executable: /bin/bash
+  register: neutron_security_api_check
+  changed_when: false
+  environment: "{{ neutron_security_cli_environment }}"
+  when: neutron_security_openrc.stat.exists

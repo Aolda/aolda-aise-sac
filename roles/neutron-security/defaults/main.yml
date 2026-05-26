@@ -1,0 +1,18 @@
+---
+neutron_security_restart_service: false
+neutron_security_validate_after_apply: true
+neutron_security_openrc_path: /root/admin-openrc
+neutron_security_cli_environment: {}
+neutron_security_service_name: neutron-server
+
+neutron_security_config_file: /etc/neutron/neutron.conf
+neutron_security_config_owner: root
+neutron_security_config_group: neutron
+neutron_security_config_mode: "0640"
+
+neutron_security_enable_tls: false
+neutron_security_validate_certs: true
+neutron_security_ca_cert: ""
+neutron_security_keystone_endpoint: ""
+neutron_security_api_endpoint: ""
+neutron_security_tls_status_codes: [200, 300, 401, 403]

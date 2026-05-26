@@ -1,0 +1,14 @@
+---
+- name: Converge Docker security role in Docker container
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    docker_apply_package_update: false
+    docker_apply_audit_config: false
+    docker_apply_daemon_security: false
+    docker_enable_runtime_container_checks: false
+    docker_service_unit_path: /lib/systemd/system/docker.service
+    docker_socket_unit_path: /lib/systemd/system/docker.socket
+  roles:
+    - role: docker-security

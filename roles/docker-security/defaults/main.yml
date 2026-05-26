@@ -3,6 +3,9 @@ docker_service_name: docker
 docker_group_name: docker
 docker_package_name_debian: docker-ce
 docker_package_name_redhat: docker-ce
+docker_apply_package_update: false
+docker_apply_daemon_security: false
+docker_apply_audit_config: true
 
 auditd_package_name: audit
 auditd_service_name: auditd

@@ -1,0 +1,14 @@
+---
+- name: "4-4-1. OpenStack CLI 환경 파일 확인"
+  ansible.builtin.stat:
+    path: "{{ glance_security_openrc_path }}"
+  register: glance_security_openrc
+
+- name: "4-4-2. Glance API 검증"
+  ansible.builtin.shell: ". {{ glance_security_openrc_path }} && openstack image list -f value -c ID"
+  args:
+    executable: /bin/bash
+  register: glance_security_api_check
+  changed_when: false
+  environment: "{{ glance_security_cli_environment }}"
+  when: glance_security_openrc.stat.exists

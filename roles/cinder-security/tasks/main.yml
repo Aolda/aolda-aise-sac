@@ -1,0 +1,95 @@
+---
+- name: "3-0. Cinder 보안 적용 사전 점검"
+  ansible.builtin.import_tasks: precheck.yml
+
+- name: "3-1. 블록스토리지 설정파일 소유권/접근권한 설정"
+  ansible.builtin.file:
+    path: "{{ cinder_security_config_file }}"
+    owner: "{{ cinder_security_config_owner }}"
+    group: "{{ cinder_security_config_group }}"
+    mode: "{{ cinder_security_config_mode }}"
+
+- name: "3-2. 블록 스토리지 서비스의 인증을 위한 keystone 사용"
+  community.general.ini_file:
+    path: "{{ cinder_security_config_file }}"
+    section: DEFAULT
+    option: auth_strategy
+    value: keystone
+    backup: true
+    mode: "{{ cinder_security_config_mode }}"
+  when: cinder_security_auth_strategy in ['', 'noauth']
+  notify: Restart Cinder
+
+- name: "3-3. 블록 스토리지 서비스에서 요청 본문 최대 크기 설정"
+  community.general.ini_file:
+    path: "{{ cinder_security_config_file }}"
+    section: oslo_middleware
+    option: max_request_body_size
+    value: "{{ cinder_security_max_request_body_size }}"
+    backup: true
+    mode: "{{ cinder_security_config_mode }}"
+  notify: Restart Cinder
+
+- name: "3-4. 블록스토리지 서비스 인증을 위한 TLS 활성화"
+  community.general.ini_file:
+    path: "{{ cinder_security_config_file }}"
+    section: keystone_authtoken
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    backup: true
+    mode: "{{ cinder_security_config_mode }}"
+  loop:
+    - option: auth_uri
+      value: "{{ cinder_security_keystone_endpoint }}"
+    - option: auth_url
+      value: "{{ cinder_security_keystone_endpoint }}"
+    - option: cafile
+      value: "{{ cinder_security_ca_cert }}"
+    - option: insecure
+      value: "false"
+  when: cinder_security_enable_tls | bool
+  notify: Restart Cinder
+
+- name: "3-5. Cinder와 Nova의 TLS 통신"
+  community.general.ini_file:
+    path: "{{ cinder_security_config_file }}"
+    section: nova
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    backup: true
+    mode: "{{ cinder_security_config_mode }}"
+  loop:
+    - option: auth_url
+      value: "{{ cinder_security_nova_endpoint }}"
+    - option: cafile
+      value: "{{ cinder_security_ca_cert }}"
+    - option: insecure
+      value: "false"
+  when: cinder_security_enable_tls | bool
+  notify: Restart Cinder
+
+- name: "3-6. Cinder와 Glance의 TLS 통신"
+  community.general.ini_file:
+    path: "{{ cinder_security_config_file }}"
+    section: DEFAULT
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    backup: true
+    mode: "{{ cinder_security_config_mode }}"
+  loop:
+    - option: glance_api_servers
+      value: "{{ cinder_security_glance_endpoint }}"
+    - option: glance_ca_certificates_file
+      value: "{{ cinder_security_ca_cert }}"
+    - option: glance_api_insecure
+      value: "false"
+  when: cinder_security_enable_tls | bool
+  notify: Restart Cinder
+
+- name: "3-7. 블록 스토리지 볼륨 암호화"
+  ansible.builtin.import_tasks: volume_encryption.yml
+  when: cinder_security_enable_volume_encryption | bool
+
+- name: "3-8. Cinder 적용 후 검증"
+  ansible.builtin.import_tasks: validate.yml
+  when: cinder_security_validate_after_apply | bool

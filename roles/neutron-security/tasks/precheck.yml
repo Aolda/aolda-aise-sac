@@ -1,0 +1,42 @@
+---
+- name: "5-0-1. Neutron 설정파일 확인"
+  ansible.builtin.stat:
+    path: "{{ neutron_security_config_file }}"
+  register: neutron_security_config_stat
+
+- name: "5-0-2. Neutron 설정파일 존재 검증"
+  ansible.builtin.assert:
+    that:
+      - neutron_security_config_stat.stat.exists
+    fail_msg: "{{ neutron_security_config_file }} 파일이 없습니다."
+
+- name: "5-0-3. Neutron auth_strategy 현재값 확인"
+  ansible.builtin.slurp:
+    path: "{{ neutron_security_config_file }}"
+  register: neutron_security_config_raw
+
+- name: "5-0-4. Neutron auth_strategy 현재값 저장"
+  ansible.builtin.set_fact:
+    neutron_security_auth_strategy: "{{ (neutron_security_config_raw.content | b64decode | regex_findall('(?im)^\\s*auth_strategy\\s*=\\s*([^#\\s]+)') | first | default('')) | lower }}"
+
+- name: "5-0-5. Neutron TLS endpoint 형식 검증"
+  ansible.builtin.assert:
+    that:
+      - item is match('^https://')
+    fail_msg: "Neutron TLS 적용 전 endpoint 값을 https:// 로 지정하세요."
+  loop:
+    - "{{ neutron_security_keystone_endpoint }}"
+    - "{{ neutron_security_api_endpoint }}"
+  when: neutron_security_enable_tls | bool
+
+- name: "5-0-6. Neutron HTTPS endpoint 및 인증서 검증"
+  ansible.builtin.uri:
+    url: "{{ item }}"
+    method: GET
+    validate_certs: "{{ neutron_security_validate_certs }}"
+    ca_path: "{{ neutron_security_ca_cert | default(omit, true) }}"
+    status_code: "{{ neutron_security_tls_status_codes }}"
+  loop:
+    - "{{ neutron_security_keystone_endpoint }}"
+    - "{{ neutron_security_api_endpoint }}"
+  when: neutron_security_enable_tls | bool

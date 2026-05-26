@@ -1,0 +1,19 @@
+---
+driver:
+  name: default
+platforms:
+  - name: molecule-target
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      roles_path: /home/subiin/projects/aolda-aise-sac/roles
+      local_tmp: /tmp/ansible-local
+      remote_tmp: /tmp/ansible-remote
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - syntax
+    - converge
+    - verify

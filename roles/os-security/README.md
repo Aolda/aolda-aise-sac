@@ -35,6 +35,7 @@ KISA 주요정보통신기반시설 기술적 취약점 분석·평가 가이드
 
 | 변수 | 기본값 | 설명 |
 | --- | --- | --- |
+| `sshd_permit_root_login` | `yes` | SSH 원격 접속 시 패스워드 인증을 허용(yes)할지, Key 파일(.pem) 기반 인증만 허용(no)할지 결정합니다. |
 | `sshd_permit_root_login` | `no` | SSH 서비스를 통한 root 계정의 직접 원격 로그인 허용 여부입니다. |
 | `os_pass_max_days` | `90` | `/etc/login.defs`에 반영될 패스워드 최대 사용 유효 기간(일)입니다. |
 | `pam_pwquality_retry` | `3` | 패스워드 변경 시 입력 레이아웃 최대 재시도 횟수입니다. |

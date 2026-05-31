@@ -13,7 +13,7 @@
 
 - name: restart timesyncd
   ansible.builtin.service:
-    name: systemd-timesyncd
+    name: "{{ service_timesyncd | default('systemd-timesyncd') }}"
     state: restarted
 
 - name: restart rsyslog

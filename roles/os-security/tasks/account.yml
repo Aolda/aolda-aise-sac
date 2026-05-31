@@ -46,7 +46,7 @@
     line: "PASS_MAX_DAYS {{ os_pass_max_days }}"
     state: present
 
-- name: "패스워드 복잡도 검증 모듈(libpam-pwquality) 사전 설치"
+- name: "패스워드 복잡도 검증 모듈({{ package_pam_pwquality | default('libpam-pwquality') }}) 사전 설치"
   ansible.builtin.apt:
     name: "{{ package_pam_pwquality | default('libpam-pwquality') }}"
     state: present
@@ -81,7 +81,7 @@
 
 - name: "패스워드 복잡도 정책 및 root 적용 강제"
   ansible.builtin.lineinfile:
-    path: "{{ path_pam_password }}"
+    path: "{{ path_pam_password | default('/etc/pam.d/common-password') }}"
     regexp: '^password\s+requisite\s+pam_pwquality.so'
     line: "password requisite pam_pwquality.so enforce_for_root retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} lcredit={{ pam_pwquality_lcredit }} ucredit={{ pam_pwquality_ucredit }} dcredit={{ pam_pwquality_dcredit }} ocredit={{ pam_pwquality_ocredit }}"
     state: present

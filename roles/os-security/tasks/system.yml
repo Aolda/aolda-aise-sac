@@ -1,12 +1,13 @@
 ---
 # 시스템 유지보수 및 인프라 운영 영역
 
-# [시간대(Timezone) 및 동기화 데몬 통제 (ntpd, chronyd 사용 X)]
-- name: "불필요/취약 NTP 데몬(ntp, chrony) 패키지 제거 강제"
+# [시간대(Timezone) 및 동기화 데몬 통제]
+- name: "레거시 및 취약 타임 데몬 패키지 삭제"
   ansible.builtin.apt:
-    name: "{{ legacy_ntp_packages }}"
+    name: "{{ item }}"
     state: absent
     purge: yes
+  loop: "{{ legacy_ntp_packages }}"
 
 - name: "시스템 시간대(Timezone)를 설정하여 로그 타임라인 무결성 확보"
   ansible.builtin.command: "timedatectl set-timezone {{ system_timezone }}"
@@ -40,22 +41,22 @@
   when: timesyncd_conf_stat.stat.exists 
   notify: restart timesyncd
 
-- name: "systemd-timesyncd 패키지 설치 여부 사전 점검"
-  ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "{{ package_timesyncd }}"
+- name: "{{ package_timesyncd | default('systemd-timesyncd') }} 패키지 설치 여부 사전 점검"
+  ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "{{ package_timesyncd | default('systemd-timesyncd') }}"
   register: timesyncd_check
   failed_when: false
   changed_when: false
 
-- name: "systemd-timesyncd 패키지 명시적 설치 (미설치 시에만 실행)"
+- name: "{{ package_timesyncd | default('systemd-timesyncd') }} 패키지 명시적 설치 (미설치 시에만 실행)"
   ansible.builtin.apt:
-    name: "{{ package_timesyncd }}"
+    name: "{{ package_timesyncd | default('systemd-timesyncd') }}"
     state: present
     update_cache: yes
   when: timesyncd_check.rc != 0
 
-- name: "타임 데몬 서비스 활성화 및 구동"
+- name: "타임 데몬 서비스({{ service_timesyncd | default('systemd-timesyncd') }}) 활성화 및 구동"
   ansible.builtin.service:
-    name: "{{ service_timesyncd }}"
+    name: "{{ service_timesyncd | default('systemd-timesyncd') }}"
     state: started
     enabled: yes
 

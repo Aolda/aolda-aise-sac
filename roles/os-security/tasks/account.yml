@@ -14,6 +14,14 @@
     update_cache: yes
   when: ssh_check.rc != 0
 
+- name: "SSH 패스워드 인증 방식 설정 ({{ sshd_password_authentication | default('yes') }})"
+  ansible.builtin.lineinfile:
+    path: "{{ path_sshd_config | default('/etc/ssh/sshd_config') }}"
+    regexp: '^#?\s*PasswordAuthentication'
+    line: "PasswordAuthentication {{ sshd_password_authentication | default('yes') }}"
+    state: present
+  notify: restart ssh
+
 - name: "SSH 권한 분리 디렉토리 생성 확인"
   ansible.builtin.file:
     path: "{{ path_sshd_run_dir }}"

@@ -42,6 +42,9 @@ os_scan_exclude_paths: "-path /tmp -prune -o -path /var/tmp -prune"
 # ==========================================
 # [계정 및 인증 정책]
 # ==========================================
+# SSH 인증 방식 제어 ('yes': 패스워드 접속 허용, 'no': 인증 키 전용 통제)
+sshd_password_authentication: 'yes'
+
 # SSH 및 패스워드 정책
 sshd_permit_root_login: 'no'
 os_pass_max_days: 90

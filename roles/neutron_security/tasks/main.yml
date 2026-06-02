@@ -1,0 +1,82 @@
+---
+- name: Validate network security mode for neutron security
+  ansible.builtin.assert:
+    that:
+      - network_security_mode in ["audit", "harden"]
+    fail_msg: "network_security_mode must be either 'audit' or 'harden'."
+
+- name: Show neutron security scaffold status in audit mode
+  ansible.builtin.debug:
+    msg:
+      - "neutron_security is in audit mode."
+      - "Certificate and TLS scaffold tasks are disabled by default."
+      - "No Neutron configuration changes are applied with the current defaults."
+  when: network_security_mode == "audit"
+
+- name: Show neutron security harden prerequisites
+  ansible.builtin.debug:
+    msg:
+      - "neutron_security harden mode requires explicit enabled and confirmed flags."
+      - "config path, cert/key paths, and service name must be set before scaffold tasks can run."
+  when: network_security_mode == "harden"
+
+- name: Apply Neutron API certificate scaffold
+  ansible.builtin.blockinfile:
+    path: "{{ neutron_security_config_path }}"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK neutron_security_api_cert"
+    block: |
+      [ssl]
+      cert_file = {{ neutron_security_cert_file }}
+      key_file = {{ neutron_security_key_file }}
+      ca_file = {{ neutron_security_ca_file }}
+  register: neutron_security_api_cert_result
+  when:
+    - network_security_mode == "harden"
+    - neutron_security_api_cert_enabled | bool
+    - neutron_security_api_cert_confirmed | bool
+    - neutron_security_config_path | length > 0
+    - neutron_security_cert_file | length > 0
+    - neutron_security_key_file | length > 0
+    - neutron_security_ca_file | length > 0
+    - neutron_security_service_name | length > 0
+
+- name: Apply Neutron TLS scaffold
+  ansible.builtin.lineinfile:
+    path: "{{ neutron_security_config_path }}"
+    regexp: "^use_ssl\\s*="
+    line: "use_ssl = true"
+    insertafter: "^\\[DEFAULT\\]$"
+  register: neutron_security_tls_result
+  when:
+    - network_security_mode == "harden"
+    - neutron_security_tls_enabled | bool
+    - neutron_security_tls_confirmed | bool
+    - neutron_security_config_path | length > 0
+    - neutron_security_cert_file | length > 0
+    - neutron_security_key_file | length > 0
+    - neutron_security_ca_file | length > 0
+    - neutron_security_service_name | length > 0
+
+- name: Restart neutron service after API certificate scaffold
+  ansible.builtin.service:
+    name: "{{ neutron_security_service_name }}"
+    state: restarted
+  when:
+    - network_security_mode == "harden"
+    - neutron_security_api_cert_enabled | bool
+    - neutron_security_api_cert_confirmed | bool
+    - neutron_security_service_name | length > 0
+    - neutron_security_api_cert_result is defined
+    - neutron_security_api_cert_result is changed
+
+- name: Restart neutron service after TLS scaffold
+  ansible.builtin.service:
+    name: "{{ neutron_security_service_name }}"
+    state: restarted
+  when:
+    - network_security_mode == "harden"
+    - neutron_security_tls_enabled | bool
+    - neutron_security_tls_confirmed | bool
+    - neutron_security_service_name | length > 0
+    - neutron_security_tls_result is defined
+    - neutron_security_tls_result is changed

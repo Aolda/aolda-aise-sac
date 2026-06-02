@@ -1,0 +1,61 @@
+---
+- name: "Storage 퇴직 계정 상태 조회"
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ item }}"
+  loop: "{{ storage_retired_users }}"
+  register: storage_retired_user_getent
+  changed_when: false
+  failed_when: false
+  when: enable_storage_account_hardening | bool
+  tags:
+    - storage_accounts
+
+- name: "Storage 계정 하드닝 대상 산정"
+  ansible.builtin.set_fact:
+    storage_account_targets: "{{ storage_retired_users | difference(storage_allowed_users) | difference(storage_account_excluded_users) }}"
+  when: enable_storage_account_hardening | bool
+  tags:
+    - storage_accounts
+
+- name: "Storage 계정 하드닝 report"
+  ansible.builtin.debug:
+    msg:
+      - "action={{ storage_account_action }}"
+      - "targets={{ storage_account_targets | default([]) | join(',') }}"
+      - "excluded={{ storage_account_excluded_users | join(',') }}"
+      - "remove_home={{ storage_remove_home }}"
+      - "mode={{ security_action_mode }}"
+  when: enable_storage_account_hardening | bool
+  tags:
+    - storage_accounts
+
+- name: "Storage 계정 잠금 처리"
+  ansible.builtin.user:
+    name: "{{ item }}"
+    password_lock: true
+    shell: "{{ storage_nologin_shell }}"
+  loop: "{{ storage_account_targets | default([]) }}"
+  become: true
+  when:
+    - enable_storage_account_hardening | bool
+    - security_action_mode == 'enforce'
+    - storage_account_action == 'lock'
+  tags:
+    - storage_accounts
+
+- name: "Storage 계정 삭제 처리"
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: absent
+    remove: "{{ storage_remove_home | bool }}"
+  loop: "{{ storage_account_targets | default([]) }}"
+  become: true
+  when:
+    - enable_storage_account_hardening | bool
+    - security_action_mode == 'delete'
+    - storage_account_action == 'delete'
+  tags:
+    - storage_accounts

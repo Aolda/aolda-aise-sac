@@ -1,0 +1,17 @@
+# Managed by Ansible: kvm-account-audit
+{% for path in kvm_log_paths %}
+{{ path }}
+{% endfor %}
+{
+    {{ kvm_log_rotate_period }}
+    rotate {{ kvm_log_rotate_count }}
+    missingok
+    notifempty
+{% if kvm_log_compress | bool %}
+    compress
+{% endif %}
+{% if kvm_log_copytruncate | bool %}
+    copytruncate
+{% endif %}
+    create 0640 root adm
+}

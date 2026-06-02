@@ -1,0 +1,10 @@
+# Managed by Ansible: storage-security-baseline
+deny = {{ faillock_deny }}
+fail_interval = {{ faillock_fail_interval }}
+unlock_time = {{ faillock_unlock_time }}
+{% if faillock_even_deny_root | bool %}
+even_deny_root
+{% endif %}
+{% if faillock_admin_group_exempt | bool %}
+admin_group = sudo
+{% endif %}

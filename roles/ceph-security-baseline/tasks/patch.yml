@@ -1,0 +1,104 @@
+---
+- name: "Ceph health 조회"
+  ansible.builtin.command:
+    argv:
+      - ceph
+      - health
+  register: ceph_patch_health
+  changed_when: false
+  failed_when: false
+  when: enable_ceph_patch | bool or ceph_patch_mode == 'report'
+  tags:
+    - ceph_patch
+
+- name: "Ceph 패치 가능 버전 조회"
+  ansible.builtin.command:
+    argv:
+      - apt-cache
+      - policy
+      - "{{ item }}"
+  loop: "{{ ceph_patch_packages }}"
+  register: ceph_patch_policy_result
+  changed_when: false
+  when: enable_ceph_patch | bool or ceph_patch_mode == 'report'
+  tags:
+    - ceph_patch
+
+- name: "Ceph 패치 report"
+  ansible.builtin.debug:
+    msg:
+      - "patch_mode={{ ceph_patch_mode }}"
+      - "target_version={{ ceph_target_version }}"
+      - "required_health={{ ceph_patch_health_required }}"
+      - "current_health={{ ceph_patch_health.stdout | default('unknown') }}"
+      - "rolling={{ ceph_rolling_patch }}"
+      - "allow_reboot={{ ceph_allow_reboot }}"
+      - "{{ ceph_patch_policy_result.results | default([]) | map(attribute='stdout_lines') | list }}"
+  when: enable_ceph_patch | bool or ceph_patch_mode == 'report'
+  tags:
+    - ceph_patch
+
+- name: "Ceph health 기준 확인"
+  ansible.builtin.assert:
+    that:
+      - ceph_patch_health.stdout is search(ceph_patch_health_required)
+    fail_msg: "Ceph health does not satisfy required state: {{ ceph_patch_health_required }}"
+  when:
+    - enable_ceph_patch | bool
+    - security_action_mode == 'enforce'
+    - ceph_patch_mode != 'report'
+  tags:
+    - ceph_patch
+
+- name: "Ceph 패키지 패치 적용"
+  ansible.builtin.apt:
+    name: "{{ ceph_patch_packages }}"
+    state: latest
+    update_cache: true
+    only_upgrade: true
+  become: true
+  register: ceph_patch_result
+  when:
+    - enable_ceph_patch | bool
+    - security_action_mode == 'enforce'
+    - ceph_patch_mode in ['security_only', 'point_release']
+  tags:
+    - ceph_patch
+
+- name: "Ceph 특정 버전 패치 적용"
+  ansible.builtin.apt:
+    name: "{{ item }}={{ ceph_target_version }}"
+    state: present
+    update_cache: true
+    allow_downgrade: true
+  loop: "{{ ceph_patch_packages }}"
+  become: true
+  register: ceph_specific_patch_result
+  when:
+    - enable_ceph_patch | bool
+    - security_action_mode == 'enforce'
+    - ceph_patch_mode == 'specific_version'
+    - ceph_target_version | length > 0
+  tags:
+    - ceph_patch
+
+- name: "Ceph 재부팅 필요 여부 확인"
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: ceph_reboot_required
+  when: enable_ceph_patch | bool
+  tags:
+    - ceph_patch
+
+- name: "Ceph 패치 후 재부팅"
+  ansible.builtin.reboot:
+    msg: "Reboot triggered by Ceph patch policy"
+    reboot_timeout: 1800
+  become: true
+  when:
+    - enable_ceph_patch | bool
+    - security_action_mode == 'enforce'
+    - ceph_allow_reboot | bool
+    - ceph_reboot_required.stat.exists | default(false)
+  tags:
+    - ceph_patch

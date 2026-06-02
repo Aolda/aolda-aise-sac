@@ -1,0 +1,58 @@
+---
+# Safe defaults for Ubuntu 24.04 storage host security baseline.
+
+security_action_mode: report
+
+enable_storage_root_ssh_restrict: true
+storage_permit_root_login: "no"
+storage_password_authentication: "no"
+storage_pubkey_authentication: "yes"
+storage_sshd_config_path: /etc/ssh/sshd_config
+storage_sshd_dropin_path: /etc/ssh/sshd_config.d/99-storage-security.conf
+
+enable_storage_password_complexity: true
+password_minlen: 12
+password_dcredit: -1
+password_ucredit: -1
+password_lcredit: -1
+password_ocredit: -1
+password_retry: 3
+password_dictcheck: true
+storage_pwquality_config_path: /etc/security/pwquality.conf.d/99-storage-security.conf
+
+enable_storage_account_lock: true
+faillock_deny: 5
+faillock_fail_interval: 900
+faillock_unlock_time: 600
+faillock_even_deny_root: false
+faillock_admin_group_exempt: false
+storage_faillock_config_path: /etc/security/faillock.conf
+
+enable_storage_password_age: false
+password_max_days: 90
+password_min_days: 1
+password_warn_age: 7
+password_age_target_users:
+  - admin
+  - ansible
+password_age_excluded_users:
+  - root
+  - ceph
+  - nova
+  - cinder
+  - glance
+password_age_apply_existing_users: false
+
+enable_storage_account_hardening: true
+storage_allowed_users:
+  - root
+  - ansible
+  - admin
+  - ceph
+storage_retired_users: []
+storage_account_action: report
+storage_nologin_shell: /usr/sbin/nologin
+storage_remove_home: false
+storage_account_excluded_users:
+  - ansible
+  - ceph

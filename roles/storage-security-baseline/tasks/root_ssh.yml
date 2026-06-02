@@ -1,0 +1,42 @@
+---
+- name: "Storage SSH 보안 report"
+  ansible.builtin.debug:
+    msg:
+      - "permit_root_login={{ storage_permit_root_login }}"
+      - "password_authentication={{ storage_password_authentication }}"
+      - "pubkey_authentication={{ storage_pubkey_authentication }}"
+      - "dropin={{ storage_sshd_dropin_path }}"
+      - "mode={{ security_action_mode }}"
+  when: enable_storage_root_ssh_restrict | bool
+  tags:
+    - storage_root_ssh
+
+- name: "Storage SSH drop-in 디렉터리 생성"
+  ansible.builtin.file:
+    path: "{{ storage_sshd_dropin_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when:
+    - enable_storage_root_ssh_restrict | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - storage_root_ssh
+
+- name: "Storage SSH root 제한 설정 배포"
+  ansible.builtin.template:
+    src: storage-sshd-security.conf.j2
+    dest: "{{ storage_sshd_dropin_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  become: true
+  notify: Reload sshd
+  when:
+    - enable_storage_root_ssh_restrict | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - storage_root_ssh

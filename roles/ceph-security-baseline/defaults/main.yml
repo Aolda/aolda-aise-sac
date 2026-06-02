@@ -1,0 +1,79 @@
+---
+# Safe defaults for Ubuntu 24.04 Ceph security baseline.
+
+security_action_mode: report
+
+enable_ceph_keyring_hardening: true
+ceph_admin_keyring_mode: "0600"
+ceph_service_keyring_mode: "0640"
+ceph_keyring_report_only: true
+ceph_keyring_policy:
+  - path: /etc/ceph/ceph.client.admin.keyring
+    owner: root
+    group: root
+    mode: "0600"
+
+enable_ceph_ssh_key_check: true
+ceph_ssh_users:
+  - root
+  - ceph
+  - ansible
+ceph_ssh_dir_mode: "0700"
+ceph_private_key_mode: "0600"
+ceph_authorized_keys_mode: "0600"
+ceph_manage_authorized_keys: false
+ceph_purge_unmanaged_keys: false
+ceph_authorized_keys_policy: {}
+
+enable_ceph_config_permission_check: true
+ceph_config_files:
+  - /etc/ceph/ceph.conf
+ceph_config_default_mode: "0644"
+ceph_config_secret_mode: "0640"
+ceph_config_owner: root
+ceph_config_group: ceph
+ceph_config_secret_patterns:
+  - key
+  - secret
+  - password
+
+enable_cephx_enforcement: false
+ceph_auth_cluster_required: cephx
+ceph_auth_service_required: cephx
+ceph_auth_client_required: cephx
+ceph_deploy_keyrings: false
+ceph_auth_report_only: true
+ceph_clients: []
+
+enable_ceph_admin_user_policy: true
+ceph_admin_users:
+  - cephadmin
+  - ansible
+ceph_admin_groups:
+  - sudo
+ceph_admin_sudo_nopasswd: true
+ceph_admin_sudo_commands:
+  - ALL
+ceph_disable_root_ssh: false
+ceph_admin_sudoers_path: /etc/sudoers.d/90-ceph-admin-users
+
+enable_ceph_selinux: false
+ceph_selinux_state: permissive
+ceph_selinux_policy: targeted
+ceph_selinux_install_packages: false
+ceph_selinux_allow_reboot: false
+ceph_selinux_report_avc: true
+
+enable_ceph_patch: false
+ceph_patch_mode: report
+ceph_target_version: ""
+ceph_patch_health_required: HEALTH_OK
+ceph_rolling_patch: true
+ceph_allow_reboot: false
+ceph_patch_batch_size: 1
+ceph_patch_packages:
+  - ceph
+  - ceph-common
+  - ceph-osd
+  - ceph-mon
+  - ceph-mgr

@@ -1,0 +1,15 @@
+---
+# Override example:
+# network_security_mode: harden
+
+# Override example:
+# network_hardening_allowed_management_cidrs:
+#   - 198.51.100.0/24
+#   - 203.0.113.0/24
+
+# Override example:
+# network_hardening_disabled_services:
+#   - telnet
+#   - ftp
+#   - www
+#   - api

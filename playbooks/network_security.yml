@@ -1,0 +1,14 @@
+---
+- name: Apply os firewall audit or hardening
+  hosts: openstack_nodes
+  become: true
+  gather_facts: false
+  roles:
+    - role: os_firewall
+    - role: neutron_security
+
+- name: Apply network gear audit or hardening
+  hosts: network_gear
+  gather_facts: false
+  roles:
+    - role: network_hardening

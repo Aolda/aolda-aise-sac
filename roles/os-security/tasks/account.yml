@@ -1,0 +1,87 @@
+---
+# 계정 및 인증 통제 영역
+
+- name: "OpenSSH 서버 설치 여부 사전 점검"
+  ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "{{ package_ssh_server }}"
+  register: ssh_check
+  failed_when: false
+  changed_when: false
+
+- name: "OpenSSH 서버가 없을 경우에만 설치 진행"
+  ansible.builtin.apt:
+    name: "{{ package_ssh_server }}"
+    state: present
+    update_cache: yes
+  when: ssh_check.rc != 0
+
+- name: "SSH 패스워드 인증 방식 설정 ({{ sshd_password_authentication | default('yes') }})"
+  ansible.builtin.lineinfile:
+    path: "{{ path_sshd_config | default('/etc/ssh/sshd_config') }}"
+    regexp: '^#?\s*PasswordAuthentication'
+    line: "PasswordAuthentication {{ sshd_password_authentication | default('yes') }}"
+    state: present
+  notify: restart ssh
+
+- name: "SSH 권한 분리 디렉토리 생성 확인"
+  ansible.builtin.file:
+    path: "{{ path_sshd_run_dir }}"
+    state: directory
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_755 }}"
+  
+- name: "SSH 설정 파일에서 root 원격 접속 제한"
+  ansible.builtin.lineinfile:
+    path: "{{ path_sshd_config }}"
+    regexp: '^#?\s*PermitRootLogin\s+'
+    line: "PermitRootLogin {{ sshd_permit_root_login }}"
+    state: present
+    validate: 'sshd -t -f %s'
+  notify: restart ssh
+
+- name: "패스워드 최대 사용 기간 설정"
+  ansible.builtin.lineinfile:
+    path: "{{ path_login_defs }}"
+    regexp: '^PASS_MAX_DAYS'
+    line: "PASS_MAX_DAYS {{ os_pass_max_days }}"
+    state: present
+
+- name: "패스워드 복잡도 검증 모듈({{ package_pam_pwquality | default('libpam-pwquality') }}) 사전 설치"
+  ansible.builtin.apt:
+    name: "{{ package_pam_pwquality | default('libpam-pwquality') }}"
+    state: present
+    update_cache: yes
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+
+# [faillock 인증 사슬 붕괴 방지: 우분투 표준 프로필 방식 도입]
+
+- name: "pam_faillock 시스템 커스텀 프로필 파일 생성"
+  ansible.builtin.copy:
+    dest: "{{ path_pam_faillock_conf | default('/usr/share/pam-configs/custom-faillock') }}"
+    owner: "{{ file_owner_root | default('root') }}"
+    group: "{{ file_group_root | default('root') }}"
+    mode: "{{ file_mode_644 | default('0644') }}"
+    content: |
+      Name: Custom Faillock Password Lockout Policy
+      Default: yes
+      Priority: 256
+      Auth-Type: Primary
+      Auth:
+          [default=die] pam_faillock.so authfail deny={{ pam_deny_count | default(5) }} unlock_time={{ pam_unlock_time | default(600) }}
+          sufficient pam_faillock.so authsucc deny={{ pam_deny_count | default(5) }} unlock_time={{ pam_unlock_time | default(600) }}
+
+- name: "우분투 PAM 프레임워크에 커스텀 faillock 정책 강제 적용"
+  ansible.builtin.command: pam-auth-update --enable custom-faillock --force
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  changed_when: false
+
+
+- name: "패스워드 복잡도 정책 및 root 적용 강제"
+  ansible.builtin.lineinfile:
+    path: "{{ path_pam_password | default('/etc/pam.d/common-password') }}"
+    regexp: '^password\s+requisite\s+pam_pwquality.so'
+    line: "password requisite pam_pwquality.so enforce_for_root retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} lcredit={{ pam_pwquality_lcredit }} ucredit={{ pam_pwquality_ucredit }} dcredit={{ pam_pwquality_dcredit }} ocredit={{ pam_pwquality_ocredit }}"
+    state: present

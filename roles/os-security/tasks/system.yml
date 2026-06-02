@@ -1,0 +1,125 @@
+---
+# 시스템 유지보수 및 인프라 운영 영역
+
+# [시간대(Timezone) 및 동기화 데몬 통제]
+- name: "레거시 및 취약 타임 데몬 패키지 삭제"
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: absent
+    purge: yes
+  loop: "{{ legacy_ntp_packages }}"
+
+- name: "시스템 시간대(Timezone)를 설정하여 로그 타임라인 무결성 확보"
+  ansible.builtin.command: "timedatectl set-timezone {{ system_timezone }}"
+  changed_when: false 
+  failed_when: false 
+
+- name: "시간대 설정 파일(/etc/localtime, /etc/timezone) 권한 및 소유자 보호 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_644 }}"
+    follow: yes
+  loop:
+    - "{{ path_localtime }}"
+    - "{{ path_timezone }}"
+  failed_when: false 
+
+- name: "timesyncd.conf 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ path_timesyncd_conf }}"
+  register: timesyncd_conf_stat
+
+- name: "timesyncd 설정 파일(/etc/systemd/timesyncd.conf) 권한 및 소유자 보호 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ path_timesyncd_conf }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_644 }}"
+    state: file
+  when: timesyncd_conf_stat.stat.exists 
+  notify: restart timesyncd
+
+- name: "{{ package_timesyncd | default('systemd-timesyncd') }} 패키지 설치 여부 사전 점검"
+  ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "{{ package_timesyncd | default('systemd-timesyncd') }}"
+  register: timesyncd_check
+  failed_when: false
+  changed_when: false
+
+- name: "{{ package_timesyncd | default('systemd-timesyncd') }} 패키지 명시적 설치 (미설치 시에만 실행)"
+  ansible.builtin.apt:
+    name: "{{ package_timesyncd | default('systemd-timesyncd') }}"
+    state: present
+    update_cache: yes
+  when: timesyncd_check.rc != 0
+
+- name: "타임 데몬 서비스({{ service_timesyncd | default('systemd-timesyncd') }}) 활성화 및 구동"
+  ansible.builtin.service:
+    name: "{{ service_timesyncd | default('systemd-timesyncd') }}"
+    state: started
+    enabled: yes
+
+- name: "시스템 커널 레벨의 NTP 자동 동기화 스위치 강제 활성화"
+  ansible.builtin.command: timedatectl set-ntp true
+  changed_when: false
+  failed_when: false
+
+
+# [로그 파일 보호]
+- name: "/etc/rsyslog.conf 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ path_rsyslog_conf }}"
+  register: rsyslog_conf_stat
+
+- name: "/etc/rsyslog.conf 파일 소유자 root 및 권한 설정 (644 권한)"
+  ansible.builtin.file:
+    path: "{{ path_rsyslog_conf }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_644 }}"
+    state: file
+  when: rsyslog_conf_stat.stat.exists
+  notify: restart rsyslog
+
+
+# [스케줄러(cron) 변조 방지]
+- name: "/etc/crontab 파일 소유자 root 및 권한 설정 (640 권한)"
+  ansible.builtin.file:
+    path: "{{ path_crontab }}"
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_640 }}"
+    state: file
+  failed_when: false
+
+- name: "/etc/cron.allow 파일 생성 및 권한 설정 (640 권한)"
+  ansible.builtin.lineinfile:
+    path: "{{ path_cron_allow }}"
+    regexp: '^root$'
+    line: "root"
+    create: yes 
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_640 }}"
+
+- name: "cron 관련 주요 디렉터리 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ cron_directories }}"
+  register: cron_dirs_stat
+
+- name: "cron 관련 주요 디렉터리 타사용자 쓰기 권한(o-w) 제거"
+  ansible.builtin.file:
+    path: "{{ item.item }}"
+    mode: "o-w"
+  loop: "{{ cron_dirs_stat.results }}"
+  when: item.stat.exists 
+
+
+# [최신 보안 패치 적용]
+- name: "OS 및 패키지 최신 보안 패치 업데이트 적용"
+  ansible.builtin.apt:
+    update_cache: yes
+    upgrade: dist
+  when: apply_security_updates | bool

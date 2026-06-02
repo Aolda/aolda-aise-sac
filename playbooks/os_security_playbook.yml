@@ -1,0 +1,7 @@
+---
+
+- name: OS 보안 조치 실행
+  hosts: os_hosts
+  become: yes
+  roles:
+    - ../roles/os-security

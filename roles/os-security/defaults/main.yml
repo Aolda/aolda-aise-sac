@@ -1,0 +1,166 @@
+---
+# ==========================================
+# [공통 및 파일 권한 정책]
+# ==========================================
+file_owner_root: 'root'
+file_group_root: 'root'
+file_group_shadow: 'shadow'
+
+file_mode_755: '0755'
+file_mode_700: '0700'   # 중요 디렉터리 (관리자 전용)
+file_mode_644: '0644'   # 일반 설정 파일
+file_mode_640: '0640'   # 그룹 읽기 허용 설정 파일
+file_mode_400: '0400'   # 민감 정보 파일 (shadow 등)
+
+# 권한 상승 공격에 악용될 수 있는 취약한 SUID/SGID 파일 목록
+unnecessary_suid_sgid_files:
+  - /sbin/dump
+  - /sbin/restore
+  - /sbin/unix_chkpwd
+  - /usr/bin/at
+  - /usr/bin/lpq
+  - /usr/bin/lpq-lpd
+  - /usr/bin/lpr
+  - /usr/bin/lpr-lpd
+  - /usr/bin/lprm
+  - /usr/bin/lprm-lpd
+  - /usr/bin/newgrp
+  - /usr/sbin/lpc
+  - /usr/sbin/lpc-lpd
+  - /usr/sbin/traceroute
+
+
+# ==========================================
+# [파일 시스템 및 보안 스캔 정책]
+# ==========================================
+# 탐색을 수행할 물리 디스크 파일 시스템 타입 조건
+os_scan_fstypes: "-fstype ext4 -o -fstype xfs"
+# 탐색에서 내용 스캔을 완전히 배제(prune)할 임시 디렉터리 경로 조건
+os_scan_exclude_paths: "-path /tmp -prune -o -path /var/tmp -prune"
+
+
+# ==========================================
+# [계정 및 인증 정책]
+# ==========================================
+# SSH 인증 방식 제어 ('yes': 패스워드 접속 허용, 'no': 인증 키 전용 통제)
+sshd_password_authentication: 'yes'
+
+# SSH 및 패스워드 정책
+sshd_permit_root_login: 'no'
+os_pass_max_days: 90
+
+# 패스워드 복잡도 (pam_pwquality)
+pam_pwquality_retry: 3
+pam_pwquality_minlen: 8
+pam_pwquality_lcredit: -1
+pam_pwquality_ucredit: -1
+pam_pwquality_dcredit: -1
+pam_pwquality_ocredit: -1
+
+# 계정 잠금 임계값
+pam_deny_count: 5
+pam_unlock_time: 600
+
+# TCP Wrapper 접속 제어 (허용 IP)
+# 기본값은 빈 리스트([])로 모든 외부 접근이 차단됩니다.
+# 주의: 허용할 IP를 추가하려면 반드시 우측의 대괄호 '[]'를 삭제하고 아래 주석(#)을 해제하세요.
+allowed_ssh_ips: []
+  # 다음과 같은 형태로 허용할 ip 작성
+  # - "192.168.0.1"
+  # - "172.30.1.0/24"
+
+# ==========================================
+# [서비스 및 패키지 관리 정책]
+# ==========================================
+# 필수 주입/보안 인프라 패키지
+package_ssh_server: 'openssh-server'
+package_netbase: 'netbase'
+package_pam_pwquality: 'libpam-pwquality'
+
+# 제거 대상 취약 패키지
+unnecessary_packages:
+  - finger
+  - tftpd
+  - talk
+  - ntalk
+  - rsh-server
+  - rsh-client
+  - nis
+  - sendmail
+  - autofs
+
+# xinetd 기반 비활성화 대상
+xinetd_vulnerable_services:
+  - echo
+  - discard
+  - daytime
+  - chargen
+  - rlogin
+  - rsh
+  - rexec
+  - finger
+  - tftp
+  - talk
+  - ntalk
+  - rstatd
+
+# 중지 대상 독립 데몬
+standalone_services_to_disable:
+  - nfs-server
+  - rpcbind
+  - autofs
+  - sendmail
+
+# ==========================================
+# [시스템 및 로그 관리 정책]
+# ==========================================
+system_timezone: 'Asia/Seoul'
+apply_security_updates: yes
+legacy_ntp_packages:
+  - ntp
+  - chrony
+package_timesyncd: 'systemd-timesyncd'
+service_timesyncd: 'systemd-timesyncd'
+
+# cron 관리 디렉터리
+cron_directories:
+  - /etc/cron.hourly
+  - /etc/cron.daily
+  - /etc/cron.weekly
+  - /etc/cron.monthly
+  - /etc/cron.d
+
+# PATH 환경 변수 점검 대상 파일
+path_check_target_files:
+  - /etc/profile
+  - /root/.profile
+  - /root/.bash_profile
+  - /root/.bashrc
+
+# ==========================================
+# [대상 파일 및 디렉터리 경로 정의]
+# ==========================================
+path_sshd_run_dir: '/run/sshd'
+path_sshd_config: '/etc/ssh/sshd_config'
+path_login_defs: '/etc/login.defs'
+path_pam_password: '/etc/pam.d/common-password'
+path_pam_auth: '/etc/pam.d/common-auth' 
+path_passwd: '/etc/passwd'
+path_shadow: '/etc/shadow'
+path_hosts: '/etc/hosts'
+path_services: '/etc/services'
+path_root_dir: '/root'
+path_etc_profile: '/etc/profile'
+path_hosts_deny: '/etc/hosts.deny'
+path_hosts_allow: '/etc/hosts.allow'
+path_hosts_equiv: '/etc/hosts.equiv'
+path_localtime: '/etc/localtime'
+path_timezone: '/etc/timezone'
+path_timesyncd_conf: '/etc/systemd/timesyncd.conf'
+path_rsyslog_conf: '/etc/rsyslog.conf'
+path_crontab: '/etc/crontab'
+path_cron_allow: '/etc/cron.allow'
+path_xinetd_dir: '/etc/xinetd.d'
+path_vsftpd_conf: '/etc/vsftpd.conf'
+path_proftpd_conf: '/etc/proftpd/proftpd.conf'
+path_pam_faillock_conf: '/usr/share/pam-configs/custom-faillock'

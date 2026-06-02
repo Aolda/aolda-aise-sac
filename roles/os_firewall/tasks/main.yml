@@ -130,3 +130,71 @@
     - network_security_mode == "harden"
     - os_firewall_apply_fragment_drop
     - os_firewall_fragment_drop_check.rc != 0
+
+- name: Apply allowlist scaffold for TCP ports from allowed source CIDRs
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -A
+      - INPUT
+      - -p
+      - tcp
+      - -s
+      - "{{ item.0 }}"
+      - --dport
+      - "{{ item.1 | string }}"
+      - -j
+      - ACCEPT
+  loop: "{{ os_firewall_allowed_source_cidrs | product(os_firewall_allowed_tcp_ports) | list }}"
+  when:
+    - network_security_mode == "harden"
+    - os_firewall_allowlist_enabled
+    - os_firewall_allowed_source_cidrs | length > 0
+    - os_firewall_allowed_tcp_ports | length > 0
+
+- name: Apply allowlist scaffold for UDP ports from allowed source CIDRs
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -A
+      - INPUT
+      - -p
+      - udp
+      - -s
+      - "{{ item.0 }}"
+      - --dport
+      - "{{ item.1 | string }}"
+      - -j
+      - ACCEPT
+  loop: "{{ os_firewall_allowed_source_cidrs | product(os_firewall_allowed_udp_ports) | list }}"
+  when:
+    - network_security_mode == "harden"
+    - os_firewall_allowlist_enabled
+    - os_firewall_allowed_source_cidrs | length > 0
+    - os_firewall_allowed_udp_ports | length > 0
+
+- name: Apply input drop logging scaffold
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -A
+      - INPUT
+      - -j
+      - LOG
+      - --log-prefix
+      - "{{ os_firewall_drop_log_prefix }} "
+  when:
+    - network_security_mode == "harden"
+    - os_firewall_drop_logging_enabled
+
+- name: Apply default input drop scaffold
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -P
+      - INPUT
+      - DROP
+  when:
+    - network_security_mode == "harden"
+    - os_firewall_default_drop_enabled | bool
+    - os_firewall_default_drop_confirmed | bool

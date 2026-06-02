@@ -15,3 +15,12 @@ network_hardening_session_timeout_users: []
 network_hardening_session_timeout: 10m
 network_hardening_session_inactivity_policy: logout
 network_hardening_disable_snmp: true
+network_hardening_unused_port_shutdown_enabled: false
+network_hardening_unused_interfaces: []
+network_hardening_rp_filter_enabled: false
+network_hardening_rp_filter_mode: loose
+network_hardening_dos_protection_enabled: false
+network_hardening_dos_rules: []
+network_hardening_default_drop_enabled: false
+network_hardening_default_drop_confirmed: false
+network_hardening_drop_logging_enabled: false

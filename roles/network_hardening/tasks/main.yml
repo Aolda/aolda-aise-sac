@@ -95,3 +95,48 @@
   when:
     - network_security_mode == "harden"
     - network_hardening_disable_snmp
+
+- name: Disable unused interfaces scaffold
+  community.routeros.command:
+    commands:
+      - /interface disable [find name="{{ item }}"]
+  loop: "{{ network_hardening_unused_interfaces }}"
+  when:
+    - network_security_mode == "harden"
+    - network_hardening_unused_port_shutdown_enabled | bool
+    - network_hardening_unused_interfaces | length > 0
+
+- name: Apply RouterOS rp-filter scaffold
+  community.routeros.command:
+    commands:
+      - /ip settings set rp-filter={{ network_hardening_rp_filter_mode }}
+  when:
+    - network_security_mode == "harden"
+    - network_hardening_rp_filter_enabled
+
+- name: Apply RouterOS DoS protection scaffold
+  community.routeros.command:
+    commands:
+      - "{{ item }}"
+  loop: "{{ network_hardening_dos_rules }}"
+  when:
+    - network_security_mode == "harden"
+    - network_hardening_dos_protection_enabled
+    - network_hardening_dos_rules | length > 0
+
+- name: Apply RouterOS drop logging scaffold
+  community.routeros.command:
+    commands:
+      - /ip firewall filter add chain=input action=log log=yes log-prefix="AISE_DROP"
+  when:
+    - network_security_mode == "harden"
+    - network_hardening_drop_logging_enabled
+
+- name: Apply RouterOS default drop scaffold
+  community.routeros.command:
+    commands:
+      - /ip firewall filter add chain=input action=drop comment="default_drop_scaffold"
+  when:
+    - network_security_mode == "harden"
+    - network_hardening_default_drop_enabled | bool
+    - network_hardening_default_drop_confirmed | bool

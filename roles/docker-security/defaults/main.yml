@@ -3,13 +3,19 @@ docker_service_name: docker
 docker_group_name: docker
 docker_package_name_debian: docker-ce
 docker_package_name_redhat: docker-ce
+docker_package_state: present
 docker_apply_package_update: false
 docker_apply_daemon_security: false
-docker_apply_audit_config: true
+docker_enable_daemon_config_extension: false
+docker_apply_audit_config: false
+docker_validate_after_apply: true
+docker_restart_service: false
+docker_restart_auditd: false
 
 auditd_package_name: audit
 auditd_service_name: auditd
 audit_rules_file: /etc/audit/rules.d/audit.rules
+docker_audit_rules_file_mode: "0640"
 
 docker_allowed_users:
   - root
@@ -18,7 +24,7 @@ docker_groups_to_clean:
   - "{{ docker_group_name }}"
 
 docker_content_trust_profile: /etc/profile.d/docker-security.sh
-docker_enable_content_trust: true
+docker_enable_content_trust: false
 
 docker_config_dir: /etc/docker
 docker_daemon_config_path: /etc/docker/daemon.json
@@ -37,17 +43,19 @@ docker_audit_watch_paths:
   - /etc/default/docker
   - /etc/sysconfig/docker
 
-docker_daemon_config:
-  no-new-privileges: true
-  userns-remap: default
-  selinux-enabled: true
-  default-pids-limit: 100
+docker_daemon_config: {}
+docker_daemon_config_mode: "0644"
 
 docker_enable_runtime_container_checks: true
+docker_runtime_check_mode: warn
 docker_fail_on_runtime_policy_violation: false
 docker_forbidden_container_process_patterns:
   - sshd
   - /usr/sbin/sshd
 docker_privileged_port_threshold: 1024
+docker_privileged_port_regex: >-
+  0\.0\.0\.0:(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->|
+  :::(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->|
+  127\.0\.0\.1:(?:[0-9]|[1-9][0-9]{1,2}|10[01][0-9]|102[0-3])->
 docker_required_container_security_opts:
   - no-new-privileges:true

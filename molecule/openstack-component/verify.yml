@@ -35,4 +35,7 @@
 
     - name: Show component config permissions
       ansible.builtin.debug:
-        msg: "{{ openstack_component }} config mode={{ openstack_config_stat.stat.mode }}, owner={{ openstack_config_stat.stat.pw_name | default(openstack_config_stat.stat.uid) }}, group={{ openstack_config_stat.stat.gr_name | default(openstack_config_stat.stat.gid) }}"
+        msg: >-
+          {{ openstack_component }} config mode={{ openstack_config_stat.stat.mode }},
+          owner={{ openstack_config_stat.stat.pw_name | default(openstack_config_stat.stat.uid) }},
+          group={{ openstack_config_stat.stat.gr_name | default(openstack_config_stat.stat.gid) }}

@@ -1,0 +1,170 @@
+---
+- name: "0-1. Kubernetes 주요 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  register: k8s_precheck_paths
+  loop:
+    - name: apiserver_manifest
+      path: "{{ k8s_apiserver_manifest }}"
+    - name: controller_manager_manifest
+      path: "{{ k8s_controller_manager_manifest }}"
+    - name: scheduler_manifest
+      path: "{{ k8s_scheduler_manifest }}"
+    - name: etcd_manifest
+      path: "{{ k8s_etcd_manifest }}"
+    - name: kubelet_config
+      path: "{{ k8s_kubelet_config_file }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "0-2. Kubernetes 노드 역할 fact 설정"
+  ansible.builtin.set_fact:
+    k8s_apiserver_manifest_exists: "{{ k8s_precheck_paths.results[0].stat.exists }}"
+    k8s_controller_manager_manifest_exists: "{{ k8s_precheck_paths.results[1].stat.exists }}"
+    k8s_scheduler_manifest_exists: "{{ k8s_precheck_paths.results[2].stat.exists }}"
+    k8s_etcd_manifest_exists: "{{ k8s_precheck_paths.results[3].stat.exists }}"
+    k8s_kubelet_config_exists: "{{ k8s_precheck_paths.results[4].stat.exists }}"
+    k8s_is_control_plane: >-
+      {{ k8s_precheck_paths.results[0].stat.exists
+         or k8s_precheck_paths.results[1].stat.exists
+         or k8s_precheck_paths.results[2].stat.exists
+         or k8s_precheck_paths.results[3].stat.exists }}
+    k8s_is_worker: "{{ k8s_precheck_paths.results[4].stat.exists }}"
+
+- name: "0-3. Static Pod manifest YAML 구조 사전 검증"
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  register: k8s_static_manifest_raw
+  loop:
+    - name: apiserver_manifest
+      path: "{{ k8s_apiserver_manifest }}"
+      exists: "{{ k8s_apiserver_manifest_exists }}"
+    - name: controller_manager_manifest
+      path: "{{ k8s_controller_manager_manifest }}"
+      exists: "{{ k8s_controller_manager_manifest_exists }}"
+    - name: scheduler_manifest
+      path: "{{ k8s_scheduler_manifest }}"
+      exists: "{{ k8s_scheduler_manifest_exists }}"
+    - name: etcd_manifest
+      path: "{{ k8s_etcd_manifest }}"
+      exists: "{{ k8s_etcd_manifest_exists }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.exists | bool
+
+- name: "0-4. Static Pod manifest 파싱 가능 여부 확인"
+  ansible.builtin.assert:
+    that:
+      - (item.content | b64decode | from_yaml).kind is defined
+    fail_msg: "{{ item.item.path }} is not valid YAML before modification."
+    quiet: true
+  loop: "{{ k8s_static_manifest_raw.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.skipped is not defined
+
+- name: "0-5. etcd TLS 인증서 파일 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: k8s_etcd_tls_file_stats
+  loop:
+    - "{{ k8s_pki_dir }}/apiserver-etcd-client.crt"
+    - "{{ k8s_pki_dir }}/apiserver-etcd-client.key"
+    - "{{ k8s_etcd_pki_dir }}/ca.crt"
+    - "{{ k8s_etcd_pki_dir }}/server.crt"
+    - "{{ k8s_etcd_pki_dir }}/server.key"
+    - "{{ k8s_etcd_pki_dir }}/peer.crt"
+    - "{{ k8s_etcd_pki_dir }}/peer.key"
+  when: k8s_etcd_manifest_exists | bool or k8s_apiserver_manifest_exists | bool
+
+- name: "0-6. etcd TLS 적용 가능 여부 fact 설정"
+  ansible.builtin.set_fact:
+    k8s_etcd_tls_files_present: >-
+      {{
+        (
+          k8s_etcd_tls_file_stats.results | default([])
+          | selectattr('stat', 'defined')
+          | selectattr('stat.exists', 'defined')
+          | selectattr('stat.exists')
+          | list
+          | length
+        ) == 7
+      }}
+    k8s_etcd_tls_files_checked: >-
+      {{
+        k8s_etcd_tls_file_stats.results | default([])
+        | selectattr('stat', 'defined')
+        | list
+        | length
+      }}
+
+- name: "0-6-1. etcd TLS 파일 점검 결과 안내"
+  ansible.builtin.debug:
+    msg: >-
+      etcd TLS file check is report-only in default mode.
+      checked={{ k8s_etcd_tls_files_checked | default(0) }},
+      present={{ k8s_etcd_tls_files_present | default(false) }},
+      control_plane={{ k8s_is_control_plane | default(false) }}.
+      Missing etcd TLS files do not fail precheck unless etcd TLS apply is explicitly enabled.
+
+- name: "0-7. Kubernetes client 버전 확인"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - version
+      - --client
+      - -o
+      - json
+  register: k8s_kubectl_client_version
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: k8s_is_control_plane | bool
+
+- name: "0-8. Kubernetes minor version 기본값 설정"
+  ansible.builtin.set_fact:
+    k8s_client_minor_version: unknown
+
+- name: "0-8-1. Kubernetes minor version JSON 후보 추출"
+  ansible.builtin.set_fact:
+    k8s_client_minor_json_matches: >-
+      {{
+        k8s_kubectl_client_version.stdout | default('')
+        | regex_findall('"minor"\s*:\s*"([0-9]+)')
+      }}
+  when:
+    - k8s_kubectl_client_version is defined
+    - k8s_kubectl_client_version.rc | default(1) == 0
+    - k8s_kubectl_client_version.stdout | default('') | length > 0
+
+- name: "0-8-2. Kubernetes minor version fact 설정"
+  ansible.builtin.set_fact:
+    k8s_client_minor_version: "{{ k8s_client_minor_json_matches[0] | int }}"
+  when:
+    - k8s_client_minor_json_matches | default([]) | length > 0
+
+- name: "0-8-3. Kubernetes minor version 확인 실패 안내"
+  ansible.builtin.debug:
+    msg: >-
+      Kubernetes client minor version could not be parsed on this node.
+      value={{ k8s_client_minor_version }},
+      rc={{ k8s_kubectl_client_version.rc | default('skipped') }},
+      stdout={{ k8s_kubectl_client_version.stdout | default('') | trim }}.
+      Admission plugin compatibility will be treated as unsupported in default precheck.
+  when: k8s_client_minor_version == 'unknown'
+
+- name: "0-9. Admission Plugin 적용 가능 여부 fact 설정"
+  ansible.builtin.set_fact:
+    k8s_admission_plugins_supported: >-
+      {{
+        k8s_client_minor_version != 'unknown' and
+        (k8s_client_minor_version | int) >= (k8s_min_admission_plugin_kubernetes_minor | int)
+      }}
+
+- name: "0-10. 노드 역할 및 적용 가능 상태 출력"
+  ansible.builtin.debug:
+    msg: >-
+      control_plane={{ k8s_is_control_plane }},
+      worker={{ k8s_is_worker }},
+      etcd_tls_files_present={{ k8s_etcd_tls_files_present | default(false) }},
+      admission_plugins_supported={{ k8s_admission_plugins_supported | default(false) }}

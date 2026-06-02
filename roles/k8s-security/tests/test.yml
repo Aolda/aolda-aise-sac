@@ -1,5 +1,6 @@
 ---
-- hosts: localhost
+- name: Test Kubernetes security role
+  hosts: localhost
   become: true
   roles:
     - k8s-security

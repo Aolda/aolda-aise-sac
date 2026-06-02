@@ -8,61 +8,75 @@
     regexp: "{{ item.regexp }}"
     line: "{{ item.line }}"
     state: present
+    backup: true
   loop: "{{ k8s_controller_manager_args }}"
+  when: k8s_controller_manager_manifest_exists | bool
   notify: Restart Kubelet
 
 - name: "1-2. Master 노드 주요 환경설정 파일 권한 설정 (644)"
-  ansible.builtin.file:
+  ansible.builtin.stat:
     path: "{{ item }}"
+  register: k8s_master_config_file_stats
+  loop: "{{ k8s_master_config_files }}"
+
+- name: "1-3. 존재하는 Master 노드 주요 환경설정 파일 권한 설정"
+  ansible.builtin.file:
+    path: "{{ item.stat.path }}"
     owner: root
     group: root
     mode: '0644'
-  loop: "{{ k8s_master_config_files }}"
-  ignore_errors: true
+  loop: "{{ k8s_master_config_file_stats.results }}"
+  when: item.stat.exists
 
-- name: "1-3. pki 디렉터리 내 인증서(.crt) 파일 탐색"
+- name: "1-4. pki 디렉터리 내 인증서(.crt) 파일 탐색"
   ansible.builtin.find:
     paths: "{{ k8s_pki_dir }}"
     patterns: "*.crt"
-    recurse: yes
+    recurse: true
   register: crt_files
+  when: k8s_pki_dir is defined
 
-- name: "1-4. 인증서 파일(.crt) 권한 644 설정"
+- name: "1-5. 인증서 파일(.crt) 권한 644 설정"
   ansible.builtin.file:
     path: "{{ item.path }}"
     owner: root
     group: root
     mode: '0644'
   loop: "{{ crt_files.files }}"
+  when: crt_files.files is defined
 
-- name: "1-5. pki 디렉터리 내 키(.key) 파일 탐색"
+- name: "1-6. pki 디렉터리 내 키(.key) 파일 탐색"
   ansible.builtin.find:
     paths: "{{ k8s_pki_dir }}"
     patterns: "*.key"
-    recurse: yes
+    recurse: true
   register: key_files
+  when: k8s_pki_dir is defined
 
-- name: "1-6. 키 파일(.key) 권한 600 설정"
+- name: "1-7. 키 파일(.key) 권한 600 설정"
   ansible.builtin.file:
     path: "{{ item.path }}"
     owner: root
     group: root
     mode: '0600'
   loop: "{{ key_files.files }}"
+  when: key_files.files is defined
 
-- name: "1-7. etcd 데이터 디렉터리 권한 700 설정"
+- name: "1-8. etcd 데이터 디렉터리 권한 700 설정"
   ansible.builtin.file:
     path: "{{ k8s_etcd_data_dir }}"
     state: directory
     owner: root
     group: root
     mode: '0700'
+  when: k8s_etcd_manifest_exists | bool
 
-- name: "1-8. Kubernetes 버전 점검 (보안 패치 확인용)"
+- name: "1-9. Kubernetes 버전 점검 (보안 패치 확인용)"
   ansible.builtin.command: kubectl version --short
   register: k8s_version
   changed_when: false
+  failed_when: false
 
-- name: "1-9. 현재 Kubernetes 버전 출력"
+- name: "1-10. 현재 Kubernetes 버전 출력"
   ansible.builtin.debug:
     msg: "현재 설치된 K8s 버전입니다. 최신 보안 패치가 적용되었는지 확인하세요: {{ k8s_version.stdout }}"

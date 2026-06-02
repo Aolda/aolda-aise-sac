@@ -4,8 +4,9 @@
 
 - name: "1-1. Identity 파일 소유권/접근권한 설정"
   ansible.builtin.import_tasks: permissions.yml
+  when: keystone_security_manage_config_permissions | bool
 
-- name: "1-2. Identity TLS 활성화"
+- name: "OSAUTH-01. Identity TLS 활성화"
   community.general.ini_file:
     path: "{{ keystone_security_config_file }}"
     section: ssl
@@ -25,7 +26,7 @@
   when: keystone_security_enable_tls | bool
   notify: Restart Keystone
 
-- name: "1-3. PKI 토큰의 강력한 해시 알고리즘 사용"
+- name: "OSAUTH-02. PKI 토큰의 강력한 해시 알고리즘 사용"
   community.general.ini_file:
     path: "{{ keystone_security_config_file }}"
     section: token
@@ -36,7 +37,7 @@
   when: keystone_security_enable_pki_hash | bool
   notify: Restart Keystone
 
-- name: "1-4. Identity 서비스 max_request_body_size 설정"
+- name: "OSAUTH-03. Identity 서비스 max_request_body_size 설정"
   community.general.ini_file:
     path: "{{ keystone_security_config_file }}"
     section: oslo_middleware
@@ -46,7 +47,7 @@
     mode: "{{ keystone_security_config_mode }}"
   notify: Restart Keystone
 
-- name: "1-5. admin_token 비활성화"
+- name: "OSAUTH-04. admin 토큰 비활성화"
   community.general.ini_file:
     path: "{{ keystone_security_config_file }}"
     section: DEFAULT

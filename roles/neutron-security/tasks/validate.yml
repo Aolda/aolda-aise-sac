@@ -1,14 +1,51 @@
 ---
-- name: "5-5-1. OpenStack CLI 환경 파일 확인"
+- name: "5-5-1. Neutron 설정파일 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ neutron_security_config_file }}"
+  register: neutron_security_config_validate_stat
+
+- name: "5-5-2. Neutron 설정파일 내용 조회"
+  ansible.builtin.slurp:
+    path: "{{ neutron_security_config_file }}"
+  register: neutron_security_config_validate_raw
+
+- name: "5-5-3. Neutron 설정파일 권한 및 인증 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - neutron_security_config_validate_stat.stat.exists
+      - not (neutron_security_manage_config_permissions | bool) or neutron_security_config_validate_stat.stat.pw_name == neutron_security_config_owner
+      - not (neutron_security_manage_config_permissions | bool) or neutron_security_config_validate_stat.stat.gr_name == neutron_security_config_group
+      - not (neutron_security_manage_config_permissions | bool) or neutron_security_config_validate_stat.stat.mode == neutron_security_config_mode
+      - >-
+        not (neutron_security_manage_auth_strategy_extension | bool) or
+        neutron_security_config_content is search('(?im)^\\s*auth_strategy\\s*=\\s*keystone\\s*$')
+    fail_msg: "Neutron 선택 적용한 설정파일 권한 또는 auth_strategy 설정이 기대값과 다릅니다."
+  vars:
+    neutron_security_config_content: "{{ neutron_security_config_validate_raw.content | b64decode }}"
+
+- name: "5-5-4. Neutron TLS 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - neutron_security_config_content is search('(?im)^\\s*auth_url\\s*=\\s*https://')
+      - neutron_security_config_content is search('(?im)^\\s*insecure\\s*=\\s*false\\s*$')
+      - neutron_security_config_content is search('(?im)^\\s*bind_ssl\\s*=\\s*true\\s*$')
+      - neutron_security_config_content is search('(?im)^\\s*use_ssl\\s*=\\s*true\\s*$')
+    fail_msg: "Neutron TLS, auth_url, insecure 또는 API SSL 설정이 기대값과 다릅니다."
+  vars:
+    neutron_security_config_content: "{{ neutron_security_config_validate_raw.content | b64decode }}"
+  when: neutron_security_enable_tls | bool
+
+- name: "5-5-5. OpenStack CLI 환경 파일 확인"
   ansible.builtin.stat:
     path: "{{ neutron_security_openrc_path }}"
   register: neutron_security_openrc
 
-- name: "5-5-2. Neutron API 검증"
+- name: "5-5-6. Neutron API 검증"
   ansible.builtin.shell: ". {{ neutron_security_openrc_path }} && openstack network agent list -f value -c Binary"
   args:
     executable: /bin/bash
   register: neutron_security_api_check
   changed_when: false
+  failed_when: neutron_security_api_check.rc != 0
   environment: "{{ neutron_security_cli_environment }}"
   when: neutron_security_openrc.stat.exists

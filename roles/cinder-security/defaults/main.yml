@@ -4,6 +4,7 @@ cinder_security_validate_after_apply: true
 cinder_security_openrc_path: /root/admin-openrc
 cinder_security_cli_environment: {}
 cinder_security_service_name: cinder-api
+cinder_security_manage_config_permissions: false
 
 cinder_security_config_file: /etc/cinder/cinder.conf
 cinder_security_config_owner: root
@@ -11,6 +12,7 @@ cinder_security_config_group: cinder
 cinder_security_config_mode: "0640"
 
 cinder_security_enable_tls: false
+cinder_security_keystone_tls_confirmed: false
 cinder_security_validate_certs: true
 cinder_security_ca_cert: ""
 cinder_security_keystone_endpoint: ""
@@ -19,7 +21,9 @@ cinder_security_glance_endpoint: ""
 cinder_security_tls_status_codes: [200, 300, 401, 403]
 cinder_security_max_request_body_size: 114688
 
+cinder_security_include_volume_encryption_extension: false
 cinder_security_enable_volume_encryption: false
+cinder_security_allow_volume_encryption_configuration: false
 cinder_security_encrypted_volume_type_name: encrypted
 cinder_security_encryption_provider: luks
 cinder_security_encryption_cipher: aes-xts-plain64

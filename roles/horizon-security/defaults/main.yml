@@ -9,6 +9,7 @@ horizon_security_config_group: horizon
 horizon_security_config_mode: "0640"
 
 horizon_security_enable_secure_cookie: false
+horizon_security_https_confirmed: false
 horizon_security_validate_certs: true
 horizon_security_ca_cert: ""
 horizon_security_https_endpoint: ""

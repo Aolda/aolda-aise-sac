@@ -20,3 +20,4 @@
         ansible_host: "{{ molecule_target_host }}"
         ansible_user: "{{ molecule_target_user | default(omit, true) }}"
         ansible_ssh_private_key_file: "{{ molecule_target_private_key_file | default(omit, true) }}"
+      changed_when: false

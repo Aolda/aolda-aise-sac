@@ -8,8 +8,9 @@
     owner: "{{ glance_security_config_owner }}"
     group: "{{ glance_security_config_group }}"
     mode: "{{ glance_security_config_mode }}"
+  when: glance_security_manage_config_permissions | bool
 
-- name: "4-2. 이미지 스토리지 서비스 인증을 위한 keystone 설정"
+- name: "OSAUTH-14. 이미지 스토리지 서비스 인증을 위한 Keystone 설정"
   community.general.ini_file:
     path: "{{ glance_security_config_file }}"
     section: paste_deploy
@@ -19,7 +20,7 @@
     mode: "{{ glance_security_config_mode }}"
   notify: Restart Glance
 
-- name: "4-3. 이미지 스토리지 서비스 인증을 위한 TLS 활성화"
+- name: "OSAUTH-13. 이미지 스토리지 서비스 인증을 위한 TLS 활성화"
   community.general.ini_file:
     path: "{{ glance_security_config_file }}"
     section: keystone_authtoken

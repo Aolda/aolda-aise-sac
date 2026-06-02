@@ -1,12 +1,19 @@
 ---
-- name: "[1-2] 계정 정리 및 패스워드 정책 적용"
-  include_tasks: 1_accounts_password.yml
+- name: "DB 서버 버전 및 종류 확인 task 포함"
+  ansible.builtin.include_tasks: 0_detect_version.yml
 
-- name: "[3-4] 권한 부여 옵션 및 테이블 접근 제한"
-  include_tasks: 2_privileges.yml
+- name: "DB 계정 정리 및 패스워드 정책 task 포함"
+  ansible.builtin.include_tasks: 1_accounts_password.yml
 
-- name: "[5-7] Root 구동 제한, 파일 권한, 로그 설정"
-  include_tasks: 3_root_and_logging.yml
+- name: "DB 권한 부여 옵션 및 시스템 테이블 접근 제한 task 포함"
+  ansible.builtin.include_tasks: 2_privileges.yml
 
-- name: "[8-9] 인증 플러그인 및 보안 패치 적용"
-  include_tasks: 4_authentication_and_patch.yml
+- name: "DB 실행 계정, 파일 권한, 로그 설정 task 포함"
+  ansible.builtin.include_tasks: 3_root_and_logging.yml
+
+- name: "DB 인증 플러그인 및 조건부 패키지 관리 task 포함"
+  ansible.builtin.include_tasks: 4_authentication_and_patch.yml
+
+- name: "DB 보안 설정 검증 task 포함"
+  ansible.builtin.include_tasks: validate.yml
+  when: db_validate_after_apply | bool

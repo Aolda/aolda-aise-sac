@@ -8,8 +8,9 @@
     owner: "{{ cinder_security_config_owner }}"
     group: "{{ cinder_security_config_group }}"
     mode: "{{ cinder_security_config_mode }}"
+  when: cinder_security_manage_config_permissions | bool
 
-- name: "3-2. 블록 스토리지 서비스의 인증을 위한 keystone 사용"
+- name: "OSAUTH-11. 블록 스토리지 서비스의 인증을 위한 Keystone 사용"
   community.general.ini_file:
     path: "{{ cinder_security_config_file }}"
     section: DEFAULT
@@ -20,7 +21,7 @@
   when: cinder_security_auth_strategy in ['', 'noauth']
   notify: Restart Cinder
 
-- name: "3-3. 블록 스토리지 서비스에서 요청 본문 최대 크기 설정"
+- name: "OSAUTH-12. 블록 스토리지 서비스에서 요청 본문 최대 크기 설정"
   community.general.ini_file:
     path: "{{ cinder_security_config_file }}"
     section: oslo_middleware
@@ -30,7 +31,7 @@
     mode: "{{ cinder_security_config_mode }}"
   notify: Restart Cinder
 
-- name: "3-4. 블록스토리지 서비스 인증을 위한 TLS 활성화"
+- name: "OSAUTH-08. 블록스토리지 서비스 인증을 위한 TLS 활성화"
   community.general.ini_file:
     path: "{{ cinder_security_config_file }}"
     section: keystone_authtoken
@@ -50,7 +51,7 @@
   when: cinder_security_enable_tls | bool
   notify: Restart Cinder
 
-- name: "3-5. Cinder와 Nova의 TLS 통신"
+- name: "OSAUTH-09. Cinder와 Nova의 TLS 통신"
   community.general.ini_file:
     path: "{{ cinder_security_config_file }}"
     section: nova
@@ -68,7 +69,7 @@
   when: cinder_security_enable_tls | bool
   notify: Restart Cinder
 
-- name: "3-6. Cinder와 Glance의 TLS 통신"
+- name: "OSAUTH-10. Cinder와 Glance의 TLS 통신"
   community.general.ini_file:
     path: "{{ cinder_security_config_file }}"
     section: DEFAULT
@@ -88,7 +89,18 @@
 
 - name: "3-7. 블록 스토리지 볼륨 암호화"
   ansible.builtin.import_tasks: volume_encryption.yml
-  when: cinder_security_enable_volume_encryption | bool
+  when:
+    - cinder_security_include_volume_encryption_extension | bool
+    - cinder_security_enable_volume_encryption | bool
+    - cinder_security_allow_volume_encryption_configuration | bool
+
+- name: "3-7-1. 블록 스토리지 볼륨 암호화 자동 구성 제외 안내"
+  ansible.builtin.debug:
+    msg: "Cinder 볼륨 암호화는 Barbican/KMS, volume type 정책, 기존 볼륨 영향 검토가 필요하여 cinder_security_allow_volume_encryption_configuration=true 일 때만 자동 구성합니다."
+  when:
+    - cinder_security_include_volume_encryption_extension | bool
+    - cinder_security_enable_volume_encryption | bool
+    - not cinder_security_allow_volume_encryption_configuration | bool
 
 - name: "3-8. Cinder 적용 후 검증"
   ansible.builtin.import_tasks: validate.yml

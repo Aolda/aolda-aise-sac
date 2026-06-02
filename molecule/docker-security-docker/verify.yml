@@ -3,6 +3,9 @@
   hosts: all
   become: true
   gather_facts: false
+  vars:
+    docker_enable_content_trust: false
+    docker_content_trust_profile: /etc/profile.d/docker-security.sh
   tasks:
     - name: Stat Docker config directory
       ansible.builtin.stat:
@@ -44,12 +47,25 @@
           - docker_socket_stat.stat.gr_name == "root"
           - docker_socket_stat.stat.mode == "0644"
 
+    - name: Stat Docker Content Trust profile
+      ansible.builtin.stat:
+        path: "{{ docker_content_trust_profile }}"
+      register: docker_content_trust_profile_stat
+
+    - name: Assert Docker Content Trust profile is absent by default
+      ansible.builtin.assert:
+        that:
+          - not docker_content_trust_profile_stat.stat.exists
+      when: not docker_enable_content_trust | bool
+
     - name: Read Docker Content Trust profile
       ansible.builtin.slurp:
-        src: /etc/profile.d/docker-security.sh
+        src: "{{ docker_content_trust_profile }}"
       register: docker_content_trust_profile
+      when: docker_enable_content_trust | bool
 
     - name: Assert Docker Content Trust is enabled
       ansible.builtin.assert:
         that:
           - "'export DOCKER_CONTENT_TRUST=1' in (docker_content_trust_profile.content | b64decode)"
+      when: docker_enable_content_trust | bool

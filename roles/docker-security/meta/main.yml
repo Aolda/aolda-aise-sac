@@ -1,9 +1,8 @@
+---
 galaxy_info:
-  author: your name
-  description: your role description
-  company: your company (optional)
-  license: license (GPL-2.0-or-later, MIT, etc)
-  min_ansible_version: 2.1
-  galaxy_tags: []
-
+  role_name: docker_security
+  author: aolda-aise-sac
+  description: Docker host security controls.
+  license: MIT
+  min_ansible_version: "2.12"
 dependencies: []

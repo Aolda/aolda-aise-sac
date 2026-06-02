@@ -8,7 +8,9 @@
     regexp: "{{ item.regexp }}"
     line: "{{ item.line }}"
     state: present
+    backup: true
   loop: "{{ k8s_apiserver_auth_args }}"
+  when: k8s_apiserver_manifest_exists | bool
   notify: Restart Kubelet
 
 - name: "2-2. 취약한 Token 기반 인증 파일 설정 제거"
@@ -16,62 +18,83 @@
     path: "{{ k8s_apiserver_manifest }}"
     regexp: '^\s*- --token-auth-file=.*'
     state: absent
+    backup: true
+  when: k8s_apiserver_manifest_exists | bool
   notify: Restart Kubelet
 
-- name: "2-3. Scheduler 및 Controller Manager 외부 오픈 금지 (bind-address)"
+- name: "2-3. Scheduler 외부 오픈 금지 (bind-address)"
   ansible.builtin.lineinfile:
-    path: "{{ item.path }}"
-    insertafter: "{{ item.after }}"
+    path: "{{ k8s_scheduler_manifest }}"
+    insertafter: '    - kube-scheduler'
     regexp: '^\s*- --bind-address='
-    line: "    - --bind-address={{ item.bind_address }}"
+    line: "    - --bind-address={{ k8s_scheduler_bind_address }}"
     state: present
-  loop:
-    - path: "{{ k8s_scheduler_manifest }}"
-      after: '    - kube-scheduler'
-      bind_address: "{{ k8s_scheduler_bind_address }}"
-    - path: "{{ k8s_controller_manager_manifest }}"
-      after: '    - kube-controller-manager'
-      bind_address: "{{ k8s_controller_manager_bind_address }}"
+    backup: true
+  when: k8s_scheduler_manifest_exists | bool
   notify: Restart Kubelet
 
-- name: "2-4. 필수 Admission Control Plugin 활성화"
+- name: "2-4. Controller Manager 외부 오픈 금지 (bind-address)"
+  ansible.builtin.lineinfile:
+    path: "{{ k8s_controller_manager_manifest }}"
+    insertafter: '    - kube-controller-manager'
+    regexp: '^\s*- --bind-address='
+    line: "    - --bind-address={{ k8s_controller_manager_bind_address }}"
+    state: present
+    backup: true
+  when: k8s_controller_manager_manifest_exists | bool
+  notify: Restart Kubelet
+
+- name: "2-5. 필수 Admission Control Plugin 활성화"
   ansible.builtin.lineinfile:
     path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
     regexp: '^\s*- --enable-admission-plugins='
     line: "    - --enable-admission-plugins={{ k8s_apiserver_enable_admission_plugins }}"
     state: present
+    backup: true
+  when: k8s_apply_admission_plugins | bool
+    and k8s_admission_plugins_supported | bool
+    and k8s_apiserver_manifest_exists | bool
   notify: Restart Kubelet
 
-- name: "2-5. 취약한 Admission Control Plugin 비활성화"
+- name: "2-6. 취약한 Admission Control Plugin 비활성화"
   ansible.builtin.lineinfile:
     path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
     regexp: '^\s*- --disable-admission-plugins='
     line: "    - --disable-admission-plugins={{ k8s_apiserver_disable_admission_plugins }}"
     state: present
+    backup: true
+  when: k8s_apply_admission_plugins | bool
+    and k8s_admission_plugins_supported | bool
+    and k8s_apiserver_manifest_exists | bool
   notify: Restart Kubelet
 
-- name: "2-6. Admission Control Config 파일 지정"
+- name: "2-7. Admission Control Config 파일 지정"
   ansible.builtin.lineinfile:
     path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
     regexp: '^\s*- --admission-control-config-file='
     line: "    - --admission-control-config-file={{ k8s_admission_control_config_file }}"
     state: present
-  when: k8s_enable_admission_control_config | bool
+    backup: true
+  when:
+    - k8s_enable_admission_control_config | bool
+    - k8s_apiserver_manifest_exists | bool
 
-- name: "2-7. API Server SSL/TLS 및 암호화 수준 강화"
+- name: "2-8. API Server SSL/TLS 및 암호화 수준 강화"
   ansible.builtin.lineinfile:
     path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
     regexp: "{{ item.regexp }}"
     line: "{{ item.line }}"
     state: present
+    backup: true
   loop: "{{ k8s_apiserver_tls_args }}"
+  when: k8s_apiserver_manifest_exists | bool
   notify: Restart Kubelet
 
-- name: "2-8. API Server Audit 로그 디렉터리 생성"
+- name: "2-9. API Server Audit 로그 디렉터리 생성"
   ansible.builtin.file:
     path: "{{ k8s_audit_log_dir }}"
     state: directory
@@ -80,7 +103,7 @@
     mode: '0700'
   when: k8s_enable_audit_log | bool
 
-- name: "2-9. API Server Audit Policy 파일 생성"
+- name: "2-10. API Server Audit Policy 파일 생성"
   ansible.builtin.copy:
     dest: "{{ k8s_audit_policy_file }}"
     content: "{{ k8s_audit_policy_content }}"
@@ -93,13 +116,14 @@
     - k8s_manage_audit_policy_file | bool
   notify: Restart Kubelet
 
-- name: "2-10. API Server Audit(감사) 로그 활성화"
+- name: "2-11. API Server Audit(감사) 로그 활성화"
   ansible.builtin.lineinfile:
     path: "{{ k8s_apiserver_manifest }}"
     insertafter: '    - kube-apiserver'
     regexp: "{{ item.regexp }}"
     line: "{{ item.line }}"
     state: present
+    backup: true
   loop:
     - regexp: '^\s*- --audit-policy-file='
       line: '    - --audit-policy-file={{ k8s_audit_policy_file }}'
@@ -111,5 +135,15 @@
       line: '    - --audit-log-maxbackup={{ k8s_audit_log_maxbackup }}'
     - regexp: '^\s*- --audit-log-maxsize='
       line: '    - --audit-log-maxsize={{ k8s_audit_log_maxsize }}'
-  when: k8s_enable_audit_log | bool
+  when:
+    - k8s_enable_audit_log | bool
+    - k8s_apiserver_manifest_exists | bool
   notify: Restart Kubelet
+
+- name: "2-12. Admission Control Plugin check-only 상태 출력"
+  ansible.builtin.debug:
+    msg: >-
+      Admission plugin changes are skipped.
+      apply={{ k8s_apply_admission_plugins }},
+      supported={{ k8s_admission_plugins_supported | default(false) }}.
+  when: not (k8s_apply_admission_plugins | bool and k8s_admission_plugins_supported | default(false) | bool)

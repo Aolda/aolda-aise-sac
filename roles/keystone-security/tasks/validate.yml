@@ -1,14 +1,55 @@
 ---
-- name: "1-6-1. OpenStack CLI 환경 파일 확인"
+- name: "1-6-1. Keystone 설정파일 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ keystone_security_config_file }}"
+  register: keystone_security_config_validate_stat
+
+- name: "1-6-2. Keystone 설정파일 내용 조회"
+  ansible.builtin.slurp:
+    path: "{{ keystone_security_config_file }}"
+  register: keystone_security_config_validate_raw
+
+- name: "1-6-3. Keystone 설정파일 권한 및 핵심 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - keystone_security_config_validate_stat.stat.exists
+      - not (keystone_security_manage_config_permissions | bool) or keystone_security_config_validate_stat.stat.pw_name == keystone_security_config_owner
+      - not (keystone_security_manage_config_permissions | bool) or keystone_security_config_validate_stat.stat.gr_name == keystone_security_config_group
+      - not (keystone_security_manage_config_permissions | bool) or keystone_security_config_validate_stat.stat.mode == keystone_security_config_mode
+      - keystone_security_config_content is search('(?im)^\\s*max_request_body_size\\s*=\\s*' ~ keystone_security_max_request_body_size ~ '\\s*$')
+      - not (keystone_security_disable_admin_token | bool) or not (keystone_security_config_content is search('(?im)^\\s*admin_token\\s*='))
+      - >-
+        not (keystone_security_enable_pki_hash | bool) or
+        keystone_security_config_content is search(
+          '(?im)^\\s*hash_algorithm\\s*=\\s*' ~ keystone_security_pki_hash_algorithm ~ '\\s*$'
+        )
+    fail_msg: "Keystone 핵심 보안 설정 또는 선택 적용한 설정파일 권한이 기대값과 다릅니다."
+  vars:
+    keystone_security_config_content: "{{ keystone_security_config_validate_raw.content | b64decode }}"
+
+- name: "1-6-4. Keystone TLS 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - keystone_security_config_content is search('(?im)^\\s*enable\\s*=\\s*true\\s*$')
+      - keystone_security_config_content is search('(?im)^\\s*certfile\\s*=\\s*' ~ keystone_security_certfile | regex_escape ~ '\\s*$')
+      - keystone_security_config_content is search('(?im)^\\s*keyfile\\s*=\\s*' ~ keystone_security_keyfile | regex_escape ~ '\\s*$')
+      - keystone_security_config_content is search('(?im)^\\s*ca_certs\\s*=\\s*' ~ keystone_security_cafile | regex_escape ~ '\\s*$')
+    fail_msg: "Keystone TLS 설정이 기대값과 다릅니다."
+  vars:
+    keystone_security_config_content: "{{ keystone_security_config_validate_raw.content | b64decode }}"
+  when: keystone_security_enable_tls | bool
+
+- name: "1-6-5. OpenStack CLI 환경 파일 확인"
   ansible.builtin.stat:
     path: "{{ keystone_security_openrc_path }}"
   register: keystone_security_openrc
 
-- name: "1-6-2. Keystone endpoint/API 검증"
+- name: "1-6-6. Keystone endpoint/API 검증"
   ansible.builtin.shell: ". {{ keystone_security_openrc_path }} && openstack token issue -f value -c id"
   args:
     executable: /bin/bash
   register: keystone_security_token_check
   changed_when: false
+  failed_when: keystone_security_token_check.rc != 0
   environment: "{{ keystone_security_cli_environment }}"
   when: keystone_security_openrc.stat.exists

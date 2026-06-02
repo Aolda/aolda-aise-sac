@@ -1,14 +1,48 @@
 ---
-- name: "2-5-1. OpenStack CLI 환경 파일 확인"
+- name: "2-5-1. Nova 설정파일 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ nova_security_config_file }}"
+  register: nova_security_config_validate_stat
+
+- name: "2-5-2. Nova 설정파일 내용 조회"
+  ansible.builtin.slurp:
+    path: "{{ nova_security_config_file }}"
+  register: nova_security_config_validate_raw
+
+- name: "2-5-3. Nova 설정파일 권한 및 인증 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - nova_security_config_validate_stat.stat.exists
+      - not (nova_security_manage_config_permissions | bool) or nova_security_config_validate_stat.stat.pw_name == nova_security_config_owner
+      - not (nova_security_manage_config_permissions | bool) or nova_security_config_validate_stat.stat.gr_name == nova_security_config_group
+      - not (nova_security_manage_config_permissions | bool) or nova_security_config_validate_stat.stat.mode == nova_security_config_mode
+      - nova_security_config_content is search('(?im)^\\s*auth_strategy\\s*=\\s*keystone\\s*$')
+    fail_msg: "Nova auth_strategy 또는 선택 적용한 설정파일 권한이 기대값과 다릅니다."
+  vars:
+    nova_security_config_content: "{{ nova_security_config_validate_raw.content | b64decode }}"
+
+- name: "2-5-4. Nova TLS 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - nova_security_config_content is search('(?im)^\\s*auth_url\\s*=\\s*https://')
+      - nova_security_config_content is search('(?im)^\\s*insecure\\s*=\\s*false\\s*$')
+      - nova_security_config_content is search('(?im)^\\s*api_servers\\s*=\\s*https://')
+    fail_msg: "Nova TLS, auth_url, insecure 또는 Glance endpoint 설정이 기대값과 다릅니다."
+  vars:
+    nova_security_config_content: "{{ nova_security_config_validate_raw.content | b64decode }}"
+  when: nova_security_enable_tls | bool
+
+- name: "2-5-5. OpenStack CLI 환경 파일 확인"
   ansible.builtin.stat:
     path: "{{ nova_security_openrc_path }}"
   register: nova_security_openrc
 
-- name: "2-5-2. Nova API 검증"
+- name: "2-5-6. Nova API 검증"
   ansible.builtin.shell: ". {{ nova_security_openrc_path }} && openstack compute service list -f value -c Binary"
   args:
     executable: /bin/bash
   register: nova_security_api_check
   changed_when: false
+  failed_when: nova_security_api_check.rc != 0
   environment: "{{ nova_security_cli_environment }}"
   when: nova_security_openrc.stat.exists

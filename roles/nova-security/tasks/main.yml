@@ -8,8 +8,9 @@
     owner: "{{ nova_security_config_owner }}"
     group: "{{ nova_security_config_group }}"
     mode: "{{ nova_security_config_mode }}"
+  when: nova_security_manage_config_permissions | bool
 
-- name: "2-2. Compute의 인증을 위한 keystone 사용"
+- name: "OSAUTH-07. Compute의 인증을 위한 Keystone 사용"
   community.general.ini_file:
     path: "{{ nova_security_config_file }}"
     section: DEFAULT
@@ -20,7 +21,7 @@
   when: nova_security_auth_strategy in ['', 'noauth']
   notify: Restart Nova
 
-- name: "2-3. Compute 인증을 위한 보안프로토콜 사용"
+- name: "OSAUTH-05. Compute 인증을 위한 보안 프로토콜 사용"
   community.general.ini_file:
     path: "{{ nova_security_config_file }}"
     section: keystone_authtoken
@@ -40,7 +41,7 @@
   when: nova_security_enable_tls | bool
   notify: Restart Nova
 
-- name: "2-4. Nova와 Glance의 안전한 통신"
+- name: "OSAUTH-06. Nova와 Glance의 안전한 통신"
   community.general.ini_file:
     path: "{{ nova_security_config_file }}"
     section: glance

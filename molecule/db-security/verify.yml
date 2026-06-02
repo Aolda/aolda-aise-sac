@@ -20,4 +20,7 @@
 
     - name: Show DB config permissions
       ansible.builtin.debug:
-        msg: "DB config mode={{ db_config_stat.stat.mode }}, owner={{ db_config_stat.stat.pw_name | default(db_config_stat.stat.uid) }}, group={{ db_config_stat.stat.gr_name | default(db_config_stat.stat.gid) }}"
+        msg: >-
+          DB config mode={{ db_config_stat.stat.mode }},
+          owner={{ db_config_stat.stat.pw_name | default(db_config_stat.stat.uid) }},
+          group={{ db_config_stat.stat.gr_name | default(db_config_stat.stat.gid) }}

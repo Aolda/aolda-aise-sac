@@ -17,9 +17,35 @@
 
 - name: "5-0-4. Neutron auth_strategy 현재값 저장"
   ansible.builtin.set_fact:
-    neutron_security_auth_strategy: "{{ (neutron_security_config_raw.content | b64decode | regex_findall('(?im)^\\s*auth_strategy\\s*=\\s*([^#\\s]+)') | first | default('')) | lower }}"
+    neutron_security_auth_strategy: >-
+      {{ (
+        neutron_security_config_raw.content | b64decode
+        | regex_findall('(?im)^\\s*auth_strategy\\s*=\\s*([^#\\s]+)')
+        | first | default('')
+      ) | lower }}
 
-- name: "5-0-5. Neutron TLS endpoint 형식 검증"
+- name: "5-0-5. Keystone TLS 선행 조건 확인"
+  ansible.builtin.assert:
+    that:
+      - neutron_security_keystone_tls_confirmed | bool
+    fail_msg: "Neutron TLS 설정은 Keystone TLS 및 endpoint/CA 신뢰 구성이 먼저 완료된 경우에만 neutron_security_keystone_tls_confirmed=true 로 적용합니다."
+  when: neutron_security_enable_tls | bool
+
+- name: "5-0-6. Neutron TLS CA 파일 확인"
+  ansible.builtin.stat:
+    path: "{{ neutron_security_ca_cert }}"
+  register: neutron_security_ca_cert_stat
+  when: neutron_security_enable_tls | bool
+
+- name: "5-0-7. Neutron TLS CA 파일 존재 검증"
+  ansible.builtin.assert:
+    that:
+      - neutron_security_ca_cert | length > 0
+      - neutron_security_ca_cert_stat.stat.exists
+    fail_msg: "Neutron TLS 적용 전 neutron_security_ca_cert 파일을 지정하고 배포하세요."
+  when: neutron_security_enable_tls | bool
+
+- name: "5-0-8. Neutron TLS endpoint 형식 검증"
   ansible.builtin.assert:
     that:
       - item is match('^https://')
@@ -29,7 +55,7 @@
     - "{{ neutron_security_api_endpoint }}"
   when: neutron_security_enable_tls | bool
 
-- name: "5-0-6. Neutron HTTPS endpoint 및 인증서 검증"
+- name: "5-0-9. Neutron HTTPS endpoint 및 인증서 검증"
   ansible.builtin.uri:
     url: "{{ item }}"
     method: GET

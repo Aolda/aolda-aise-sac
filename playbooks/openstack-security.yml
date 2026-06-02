@@ -33,10 +33,3 @@
   roles:
     - role: neutron-security
       tags: [neutron, networking, openstack]
-
-- name: Apply KISA Horizon security controls
-  hosts: horizon
-  become: true
-  roles:
-    - role: horizon-security
-      tags: [horizon, dashboard, acc, openstack]

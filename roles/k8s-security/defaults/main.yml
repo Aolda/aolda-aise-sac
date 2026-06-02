@@ -1,11 +1,20 @@
 ---
 k8s_kubelet_service_name: kubelet
+k8s_kubectl_config: /etc/kubernetes/admin.conf
 
-k8s_apply_control_plane: true
-k8s_apply_api_server: true
-k8s_apply_etcd: true
-k8s_apply_kubelet: true
-k8s_apply_policies: true
+k8s_node_role: auto
+k8s_restart_kubelet: false
+k8s_validate_after_apply: true
+
+k8s_apply_control_plane: false
+k8s_apply_api_server: false
+k8s_apply_etcd_tls: false
+k8s_apply_etcd_encryption_config: false
+k8s_apply_etcd_permissions: false
+k8s_apply_kubelet: false
+k8s_apply_policies: false
+k8s_check_policies: true
+k8s_apply_admission_plugins: false
 
 k8s_manifest_dir: /etc/kubernetes/manifests
 k8s_pki_dir: /etc/kubernetes/pki
@@ -51,6 +60,7 @@ k8s_apiserver_enable_admission_plugins: NodeRestriction,AlwaysPullImages,Securit
 k8s_apiserver_disable_admission_plugins: NamespaceLifecycle,AlwaysAdmin
 k8s_admission_control_config_file: /etc/kubernetes/admission-control-config.yaml
 k8s_enable_admission_control_config: false
+k8s_min_admission_plugin_kubernetes_minor: 25
 
 k8s_apiserver_tls_args:
   - regexp: '^\s*- --kubelet-certificate-authority='
@@ -85,6 +95,7 @@ k8s_audit_policy_content: |
 k8s_encryption_provider_config: /etc/kubernetes/encryption-config.yaml
 k8s_enable_encryption_provider_config: false
 k8s_manage_encryption_config_file: false
+k8s_acknowledge_secret_reencryption_required: false
 k8s_encryption_config_secret: ""
 k8s_encryption_config_content: |
   apiVersion: apiserver.config.k8s.io/v1
@@ -145,13 +156,15 @@ k8s_kubelet_tls_cipher_suites:
   - TLS_RSA_WITH_AES_128_GCM_SHA256
 
 k8s_psa_namespace: default
+k8s_apply_psa_labels: false
 k8s_psa_enforce_level: restricted
 k8s_psa_warn_level: restricted
 k8s_secure_pod_template_path: /etc/kubernetes/secure-pod-template.yaml
+k8s_create_secure_pod_template: false
 k8s_enable_pod_security_checks: true
 k8s_fail_on_policy_violation: false
 
-k8s_enable_rbac_controls: true
+k8s_enable_rbac_controls: false
 k8s_rbac_namespace: "{{ k8s_psa_namespace }}"
 k8s_restricted_service_account: restricted-workload
 k8s_restricted_role_name: restricted-readonly
@@ -172,7 +185,7 @@ k8s_default_deny_network_policy_name: default-deny-all
 k8s_allow_dns_network_policy_name: allow-dns-egress
 k8s_enable_dns_egress_policy: true
 
-k8s_enable_secret_controls: true
+k8s_enable_secret_controls: false
 k8s_secret_namespace: "{{ k8s_psa_namespace }}"
 k8s_secret_template_path: /etc/kubernetes/secure-secret-template.yaml
 k8s_disable_default_service_account_token_automount: false

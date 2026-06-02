@@ -1,4 +1,5 @@
 ---
 collections:
-  - name: community.mysql
+  - name: ansible.mysql
+  - name: community.docker
   - name: community.general

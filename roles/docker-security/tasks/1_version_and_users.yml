@@ -1,29 +1,29 @@
 ---
 # CHECK: 대상 OS의 패키지명, Docker 그룹명, 허용 계정을 확인하세요.
 
-- name: "1-1. Docker 패키지 최신 버전 업데이트 (RHEL/CentOS)"
-  ansible.builtin.yum:
+- name: "DOCKER-01. Docker 패키지 상태 관리 (RHEL/CentOS)"
+  ansible.builtin.dnf:
     name: "{{ docker_package_name_redhat }}"
-    state: latest
+    state: "{{ docker_package_state }}"
   when:
     - docker_apply_package_update | bool
     - ansible_os_family == "RedHat"
 
-- name: "1-1. Docker 패키지 최신 버전 업데이트 (Debian/Ubuntu)"
+- name: "DOCKER-01. Docker 패키지 상태 관리 (Debian/Ubuntu)"
   ansible.builtin.apt:
     name: "{{ docker_package_name_debian }}"
-    state: latest
+    state: "{{ docker_package_state }}"
     update_cache: true
   when:
     - docker_apply_package_update | bool
     - ansible_os_family == "Debian"
 
-- name: "2-1. Docker 그룹 생성 확인"
+- name: "DOCKER-02. Docker 그룹 생성 확인"
   ansible.builtin.group:
     name: "{{ docker_group_name }}"
     state: present
 
-- name: "2-2. 허용된 사용자를 Docker 그룹에 추가"
+- name: "DOCKER-02. 허용된 사용자를 Docker 그룹에 추가"
   ansible.builtin.user:
     name: "{{ item }}"
     groups: "{{ docker_group_name }}"
@@ -31,14 +31,14 @@
   loop: "{{ docker_allowed_users }}"
   when: item != 'root'
 
-- name: "2-3. Docker 그룹에서 제거할 사용자 존재 여부 확인"
+- name: "DOCKER-02. Docker 그룹에서 제거할 사용자 존재 여부 확인"
   ansible.builtin.command: "id -u {{ item }}"
   register: docker_disallowed_users_check
   changed_when: false
   failed_when: false
   loop: "{{ docker_disallowed_group_users }}"
 
-- name: "2-4. Docker 그룹에서 불필요한 사용자 제거"
+- name: "DOCKER-02. Docker 그룹에서 불필요한 사용자 제거"
   ansible.builtin.command: "gpasswd -d {{ item.0.item }} {{ item.1 }}"
   register: docker_group_remove_result
   changed_when: docker_group_remove_result.rc == 0
@@ -51,7 +51,7 @@
     - docker_disallowed_group_users | length > 0
     - item.0.rc == 0
 
-- name: "도커 콘텐츠 신뢰성 활성화 (DOCKER_CONTENT_TRUST)"
+- name: "DOCKER-16. Docker Content Trust 환경 변수 파일 설정"
   ansible.builtin.lineinfile:
     path: "{{ docker_content_trust_profile }}"
     create: true
@@ -59,4 +59,5 @@
     owner: root
     group: root
     mode: '0644'
+    backup: true
   when: docker_enable_content_trust | bool

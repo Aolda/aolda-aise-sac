@@ -1,36 +1,80 @@
 ---
-# CHECK: kubectl 실행 권한과 PSA 적용 네임스페이스를 대상 Control Plane에서 확인하세요.
+# CHECK: kubectl 실행 권한과 PSA/NetworkPolicy 대상 네임스페이스를 확인하세요.
 
-- name: "5-1. default 네임스페이스에 PSA Restricted 정책 라벨 적용"
-  ansible.builtin.command: >
-    kubectl label --overwrite namespace {{ k8s_psa_namespace }}
-    pod-security.kubernetes.io/enforce={{ k8s_psa_enforce_level }}
-    pod-security.kubernetes.io/warn={{ k8s_psa_warn_level }}
-  ignore_errors: true
+- name: "5-1. 대상 네임스페이스 PSA 라벨 check-only 조회"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - "--kubeconfig={{ k8s_kubectl_config }}"
+      - get
+      - namespace
+      - "{{ k8s_psa_namespace }}"
+      - -o
+      - jsonpath={.metadata.labels}
+  register: k8s_psa_label_check
   changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - k8s_check_policies | bool
+    - k8s_is_control_plane | bool
 
-- name: "5-2. 제한된 워크로드용 ServiceAccount 생성"
+- name: "5-2. 대상 네임스페이스 PSA 라벨 check-only 출력"
+  ansible.builtin.debug:
+    msg: "Namespace {{ k8s_psa_namespace }} labels: {{ k8s_psa_label_check.stdout | default('{}') }}"
+  when:
+    - k8s_check_policies | bool
+    - k8s_psa_label_check is defined
+
+- name: "5-3. 대상 네임스페이스에 PSA 라벨 적용"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - label
+      - --overwrite
+      - namespace
+      - "{{ k8s_psa_namespace }}"
+      - "pod-security.kubernetes.io/enforce={{ k8s_psa_enforce_level }}"
+      - "pod-security.kubernetes.io/warn={{ k8s_psa_warn_level }}"
+  register: k8s_psa_label_result
+  changed_when: "'not labeled' not in k8s_psa_label_result.stdout"
+  failed_when: k8s_psa_label_result.rc != 0
+  when:
+    - k8s_apply_policies | bool
+    - k8s_apply_psa_labels | bool
+
+- name: "5-4. 제한된 워크로드용 ServiceAccount manifest 생성"
   ansible.builtin.command: >
     kubectl create serviceaccount {{ k8s_restricted_service_account }}
     --namespace {{ k8s_rbac_namespace }}
     --dry-run=client -o yaml
   register: k8s_restricted_service_account_manifest
   changed_when: false
-  when: k8s_enable_rbac_controls | bool
+  failed_when: k8s_restricted_service_account_manifest.rc != 0
+  when:
+    - k8s_apply_policies | bool
+    - k8s_enable_rbac_controls | bool
 
-- name: "5-3. 제한된 워크로드용 ServiceAccount 적용"
+- name: "5-5. 제한된 워크로드용 ServiceAccount 적용"
   ansible.builtin.command: kubectl apply -f -
   args:
     stdin: "{{ k8s_restricted_service_account_manifest.stdout }}"
-  changed_when: true
-  when: k8s_enable_rbac_controls | bool
+  register: k8s_restricted_service_account_apply
+  changed_when: >-
+    'created' in k8s_restricted_service_account_apply.stdout
+    or 'configured' in k8s_restricted_service_account_apply.stdout
+  failed_when: k8s_restricted_service_account_apply.rc != 0
+  when:
+    - k8s_apply_policies | bool
+    - k8s_enable_rbac_controls | bool
 
-- name: "5-4. 최소 권한 Role manifest 생성"
+- name: "5-6. 최소 권한 Role manifest 생성"
   ansible.builtin.copy:
     dest: "/tmp/{{ k8s_restricted_role_name }}-role.yaml"
     owner: root
     group: root
     mode: '0600'
+    backup: true
     content: |
       apiVersion: rbac.authorization.k8s.io/v1
       kind: Role
@@ -39,14 +83,20 @@
         namespace: {{ k8s_rbac_namespace }}
       rules:
       {{ k8s_restricted_role_rules | to_nice_yaml(indent=2) | indent(6, true) }}
-  when: k8s_enable_rbac_controls | bool
+  when:
+    - k8s_apply_policies | bool
+    - k8s_enable_rbac_controls | bool
 
-- name: "5-5. 최소 권한 Role 적용"
+- name: "5-7. 최소 권한 Role 적용"
   ansible.builtin.command: "kubectl apply -f /tmp/{{ k8s_restricted_role_name }}-role.yaml"
-  changed_when: true
-  when: k8s_enable_rbac_controls | bool
+  register: k8s_restricted_role_apply
+  changed_when: "'created' in k8s_restricted_role_apply.stdout or 'configured' in k8s_restricted_role_apply.stdout"
+  failed_when: k8s_restricted_role_apply.rc != 0
+  when:
+    - k8s_apply_policies | bool
+    - k8s_enable_rbac_controls | bool
 
-- name: "5-6. 최소 권한 RoleBinding 적용"
+- name: "5-8. 최소 권한 RoleBinding manifest 생성"
   ansible.builtin.command: >
     kubectl create rolebinding {{ k8s_restricted_role_name }}-binding
     --namespace {{ k8s_rbac_namespace }}
@@ -55,16 +105,51 @@
     --dry-run=client -o yaml
   register: k8s_restricted_rolebinding_manifest
   changed_when: false
-  when: k8s_enable_rbac_controls | bool
+  failed_when: k8s_restricted_rolebinding_manifest.rc != 0
+  when:
+    - k8s_apply_policies | bool
+    - k8s_enable_rbac_controls | bool
 
-- name: "5-7. 최소 권한 RoleBinding 배포"
+- name: "5-9. 최소 권한 RoleBinding 적용"
   ansible.builtin.command: kubectl apply -f -
   args:
     stdin: "{{ k8s_restricted_rolebinding_manifest.stdout }}"
-  changed_when: true
-  when: k8s_enable_rbac_controls | bool
+  register: k8s_restricted_rolebinding_apply
+  changed_when: >-
+    'created' in k8s_restricted_rolebinding_apply.stdout
+    or 'configured' in k8s_restricted_rolebinding_apply.stdout
+  failed_when: k8s_restricted_rolebinding_apply.rc != 0
+  when:
+    - k8s_apply_policies | bool
+    - k8s_enable_rbac_controls | bool
 
-- name: "5-8. default deny NetworkPolicy 적용"
+- name: "5-10. NetworkPolicy check-only 조회"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - "--kubeconfig={{ k8s_kubectl_config }}"
+      - get
+      - networkpolicy
+      - --namespace
+      - "{{ k8s_network_policy_namespace }}"
+      - -o
+      - name
+  register: k8s_network_policy_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - k8s_check_policies | bool
+    - k8s_is_control_plane | bool
+
+- name: "5-11. NetworkPolicy check-only 출력"
+  ansible.builtin.debug:
+    msg: "NetworkPolicies in {{ k8s_network_policy_namespace }}: {{ k8s_network_policy_check.stdout_lines | default([]) }}"
+  when:
+    - k8s_check_policies | bool
+    - k8s_network_policy_check is defined
+
+- name: "5-12. default deny NetworkPolicy 적용"
   ansible.builtin.command: kubectl apply -f -
   args:
     stdin: |
@@ -78,10 +163,16 @@
         policyTypes:
           - Ingress
           - Egress
-  changed_when: true
-  when: k8s_enable_network_policies | bool
+  register: k8s_default_deny_network_policy_apply
+  changed_when: >-
+    'created' in k8s_default_deny_network_policy_apply.stdout
+    or 'configured' in k8s_default_deny_network_policy_apply.stdout
+  failed_when: k8s_default_deny_network_policy_apply.rc != 0
+  when:
+    - k8s_apply_policies | bool
+    - k8s_enable_network_policies | bool
 
-- name: "5-9. DNS egress 허용 NetworkPolicy 적용"
+- name: "5-13. DNS egress 허용 NetworkPolicy 적용"
   ansible.builtin.command: kubectl apply -f -
   args:
     stdin: |
@@ -100,28 +191,37 @@
                 port: 53
               - protocol: TCP
                 port: 53
-  changed_when: true
+  register: k8s_allow_dns_network_policy_apply
+  changed_when: >-
+    'created' in k8s_allow_dns_network_policy_apply.stdout
+    or 'configured' in k8s_allow_dns_network_policy_apply.stdout
+  failed_when: k8s_allow_dns_network_policy_apply.rc != 0
   when:
+    - k8s_apply_policies | bool
     - k8s_enable_network_policies | bool
     - k8s_enable_dns_egress_policy | bool
 
-- name: "5-10. default ServiceAccount 토큰 자동 마운트 비활성화"
+- name: "5-14. default ServiceAccount 토큰 자동 마운트 비활성화"
   ansible.builtin.command: >
     kubectl patch serviceaccount default
     --namespace {{ k8s_secret_namespace }}
     --type merge
     --patch '{"automountServiceAccountToken": false}'
-  changed_when: true
+  register: k8s_default_service_account_patch
+  changed_when: "'patched' in k8s_default_service_account_patch.stdout"
+  failed_when: k8s_default_service_account_patch.rc != 0
   when:
+    - k8s_apply_policies | bool
     - k8s_enable_secret_controls | bool
     - k8s_disable_default_service_account_token_automount | bool
 
-- name: "5-11. 안전한 Secret 배포 템플릿(가이드용) 파일 생성"
+- name: "5-15. 안전한 Secret 배포 템플릿 파일 생성"
   ansible.builtin.copy:
     dest: "{{ k8s_secret_template_path }}"
     owner: root
     group: root
     mode: '0600'
+    backup: true
     content: |
       apiVersion: v1
       kind: Secret
@@ -132,14 +232,17 @@
       stringData:
         username: replace-me
         password: replace-me
-  when: k8s_enable_secret_controls | bool
+  when:
+    - k8s_apply_policies | bool
+    - k8s_enable_secret_controls | bool
 
-- name: "5-12. 안전한 Pod 배포 템플릿(가이드용) 파일 생성"
+- name: "5-16. 안전한 Pod 배포 템플릿 파일 생성"
   ansible.builtin.copy:
     dest: "{{ k8s_secure_pod_template_path }}"
     owner: root
     group: root
     mode: '0644'
+    backup: true
     content: |
       apiVersion: v1
       kind: Pod
@@ -150,7 +253,6 @@
         hostNetwork: false
         hostPID: false
         hostIPC: false
-
         containers:
         - name: secure-container
           image: nginx:latest
@@ -163,3 +265,6 @@
                 - "ALL"
             seccompProfile:
               type: "RuntimeDefault"
+  when:
+    - k8s_apply_policies | bool
+    - k8s_create_secure_pod_template | bool

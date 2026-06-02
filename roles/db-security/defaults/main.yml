@@ -3,11 +3,14 @@ db_service_name: mariadb
 db_package_name_debian: mariadb-server
 db_package_name_redhat: mariadb-server
 db_apply_security_patch: false
+db_package_state: present
+db_validate_after_apply: true
 
 db_config_file: /etc/my.cnf
 db_login_unix_socket: /var/lib/mysql/mysql.sock
 db_runtime_user: mysql
 db_runtime_group: mysql
+db_max_config_file_mode: "0640"
 
 db_test_users:
   - test
@@ -16,14 +19,19 @@ db_test_users:
 db_unnecessary_accounts: []
 db_disallowed_account_hosts: []
 db_regular_users: []
+db_privilege_exempt_users:
+  - prometheus
+  - mysqld_exporter
 
 db_password_policy_marker: "# {mark} ANSIBLE MANAGED BLOCK - Password Policy"
 db_validate_password_marker: "# {mark} ANSIBLE MANAGED BLOCK - Validate Password Policy"
 db_logging_marker: "# {mark} ANSIBLE MANAGED BLOCK - Logging"
 db_authentication_marker: "# {mark} ANSIBLE MANAGED BLOCK - Authentication Plugin"
 
-db_password_policy_type: mariadb_simple
+db_password_policy_type: auto
+db_apply_password_policy: false
 db_enable_validate_password_component: false
+db_min_mysql_validate_password_major_version: 8
 
 db_password_policy_block: |
   plugin-load-add=simple_password_check.so
@@ -45,9 +53,13 @@ db_error_log_file: /var/log/mysql/error.log
 db_long_query_time: 2
 
 db_enable_general_log: false
+db_fail_general_log_enabled: false
 db_general_log_file: /var/log/mysql/general.log
 
 db_secure_authentication_plugin: caching_sha2_password
 db_set_default_authentication_plugin: false
 db_secure_auth_users: []
 db_user_table_revoke_privileges: ALL PRIVILEGES
+
+db_enforce_runtime_user: false
+db_process_check_mode: warn

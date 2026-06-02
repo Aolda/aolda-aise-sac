@@ -1,0 +1,9 @@
+---
+- name: Project syntax converge placeholder
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Confirm project-level Molecule scenario is active
+      ansible.builtin.debug:
+        msg: "Project-level syntax and smoke verification scenario."

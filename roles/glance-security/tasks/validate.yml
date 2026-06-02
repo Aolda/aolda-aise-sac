@@ -1,0 +1,47 @@
+---
+- name: "4-4-1. Glance 설정파일 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ glance_security_config_file }}"
+  register: glance_security_config_validate_stat
+
+- name: "4-4-2. Glance 설정파일 내용 조회"
+  ansible.builtin.slurp:
+    path: "{{ glance_security_config_file }}"
+  register: glance_security_config_validate_raw
+
+- name: "4-4-3. Glance 설정파일 권한 및 인증 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - glance_security_config_validate_stat.stat.exists
+      - not (glance_security_manage_config_permissions | bool) or glance_security_config_validate_stat.stat.pw_name == glance_security_config_owner
+      - not (glance_security_manage_config_permissions | bool) or glance_security_config_validate_stat.stat.gr_name == glance_security_config_group
+      - not (glance_security_manage_config_permissions | bool) or glance_security_config_validate_stat.stat.mode == glance_security_config_mode
+      - glance_security_config_content is search('(?im)^\\s*flavor\\s*=\\s*keystone\\s*$')
+    fail_msg: "Glance paste_deploy flavor 또는 선택 적용한 설정파일 권한이 기대값과 다릅니다."
+  vars:
+    glance_security_config_content: "{{ glance_security_config_validate_raw.content | b64decode }}"
+
+- name: "4-4-4. Glance TLS 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - glance_security_config_content is search('(?im)^\\s*auth_url\\s*=\\s*https://')
+      - glance_security_config_content is search('(?im)^\\s*insecure\\s*=\\s*false\\s*$')
+    fail_msg: "Glance TLS, auth_url 또는 insecure 설정이 기대값과 다릅니다."
+  vars:
+    glance_security_config_content: "{{ glance_security_config_validate_raw.content | b64decode }}"
+  when: glance_security_enable_tls | bool
+
+- name: "4-4-5. OpenStack CLI 환경 파일 확인"
+  ansible.builtin.stat:
+    path: "{{ glance_security_openrc_path }}"
+  register: glance_security_openrc
+
+- name: "4-4-6. Glance API 검증"
+  ansible.builtin.shell: ". {{ glance_security_openrc_path }} && openstack image list -f value -c ID"
+  args:
+    executable: /bin/bash
+  register: glance_security_api_check
+  changed_when: false
+  failed_when: glance_security_api_check.rc != 0
+  environment: "{{ glance_security_cli_environment }}"
+  when: glance_security_openrc.stat.exists

@@ -1,0 +1,46 @@
+---
+- name: "0-1. DB 서버 버전 및 종류 확인"
+  ansible.mysql.mysql_query:
+    login_unix_socket: "{{ db_login_unix_socket }}"
+    query: "SELECT @@VERSION AS version, @@VERSION_COMMENT AS version_comment"
+  register: db_server_version_query
+  changed_when: false
+  failed_when: db_server_version_query.failed | default(false)
+
+- name: "0-2. DB 서버 버전 fact 설정"
+  ansible.builtin.set_fact:
+    db_server_version: "{{ db_server_version_query.query_result[0][0].version | string }}"
+    db_server_version_comment: "{{ db_server_version_query.query_result[0][0].version_comment | default('') | string }}"
+    db_server_major_version: "{{ (db_server_version_query.query_result[0][0].version | string).split('.')[0] | int }}"
+    db_is_mariadb: >-
+      {{ 'mariadb' in (
+        (db_server_version_query.query_result[0][0].version | string)
+        ~ ' '
+        ~ (db_server_version_query.query_result[0][0].version_comment | default('') | string)
+      ) | lower }}
+    db_is_mysql: >-
+      {{ 'mariadb' not in (
+        (db_server_version_query.query_result[0][0].version | string)
+        ~ ' '
+        ~ (db_server_version_query.query_result[0][0].version_comment | default('') | string)
+      ) | lower }}
+
+- name: "0-3. 적용할 패스워드 정책 유형 결정"
+  ansible.builtin.set_fact:
+    db_effective_password_policy_type: >-
+      {% if db_password_policy_type != 'auto' %}
+      {{ db_password_policy_type }}
+      {% elif db_is_mariadb | bool %}
+      mariadb_simple
+      {% elif db_is_mysql | bool and (db_server_major_version | int) >= (db_min_mysql_validate_password_major_version | int) %}
+      mysql_validate
+      {% else %}
+      unsupported
+      {% endif %}
+
+- name: "0-4. DB 서버 버전 및 패스워드 정책 유형 출력"
+  ansible.builtin.debug:
+    msg: >-
+      DB version={{ db_server_version }},
+      comment={{ db_server_version_comment }},
+      password_policy={{ db_effective_password_policy_type | trim }}

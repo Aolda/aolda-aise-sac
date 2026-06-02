@@ -1,0 +1,45 @@
+---
+- name: "3-8-1. Cinder 설정파일 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ cinder_security_config_file }}"
+  register: cinder_security_config_validate_stat
+
+- name: "3-8-2. Cinder 설정파일 내용 조회"
+  ansible.builtin.slurp:
+    path: "{{ cinder_security_config_file }}"
+  register: cinder_security_config_validate_raw
+
+- name: "3-8-3. Cinder 설정파일 권한 및 핵심 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - cinder_security_config_validate_stat.stat.exists
+      - not (cinder_security_manage_config_permissions | bool) or cinder_security_config_validate_stat.stat.pw_name == cinder_security_config_owner
+      - not (cinder_security_manage_config_permissions | bool) or cinder_security_config_validate_stat.stat.gr_name == cinder_security_config_group
+      - not (cinder_security_manage_config_permissions | bool) or cinder_security_config_validate_stat.stat.mode == cinder_security_config_mode
+      - cinder_security_config_content is search('(?im)^\\s*auth_strategy\\s*=\\s*keystone\\s*$')
+      - cinder_security_config_content is search('(?im)^\\s*max_request_body_size\\s*=\\s*' ~ cinder_security_max_request_body_size ~ '\\s*$')
+    fail_msg: "Cinder auth_strategy, max_request_body_size 또는 선택 적용한 설정파일 권한이 기대값과 다릅니다."
+  vars:
+    cinder_security_config_content: "{{ cinder_security_config_validate_raw.content | b64decode }}"
+
+- name: "3-8-4. Cinder TLS 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - cinder_security_config_content is search('(?im)^\\s*auth_url\\s*=\\s*https://')
+      - cinder_security_config_content is search('(?im)^\\s*insecure\\s*=\\s*false\\s*$')
+      - cinder_security_config_content is search('(?im)^\\s*glance_api_servers\\s*=\\s*https://')
+      - cinder_security_config_content is search('(?im)^\\s*glance_api_insecure\\s*=\\s*false\\s*$')
+    fail_msg: "Cinder TLS, auth_url, insecure 또는 Glance endpoint 설정이 기대값과 다릅니다."
+  vars:
+    cinder_security_config_content: "{{ cinder_security_config_validate_raw.content | b64decode }}"
+  when: cinder_security_enable_tls | bool
+
+- name: "3-8-5. Cinder API 검증"
+  ansible.builtin.shell: ". {{ cinder_security_openrc_path }} && openstack volume service list -f value -c Binary"
+  args:
+    executable: /bin/bash
+  register: cinder_security_api_check
+  changed_when: false
+  failed_when: cinder_security_api_check.rc != 0
+  environment: "{{ cinder_security_cli_environment }}"
+  when: cinder_security_openrc.stat.exists

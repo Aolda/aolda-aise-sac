@@ -1,0 +1,130 @@
+---
+- name: "10-1. DB 설정 파일 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ db_config_file }}"
+  register: db_config_file_stat
+
+- name: "10-2. DB 설정 파일 권한 검증"
+  ansible.builtin.assert:
+    that:
+      - db_config_file_stat.stat.exists
+      - db_config_file_stat.stat.pw_name == "root"
+      - db_config_file_stat.stat.gr_name == db_runtime_group
+      - (db_config_file_stat.stat.mode | int(base=8)) <= (db_max_config_file_mode | int(base=8))
+    fail_msg: "DB config file ownership or mode is not secure enough."
+    success_msg: "DB config file ownership and mode are secure."
+
+- name: "10-3. DB 프로세스 실행 사용자 확인"
+  ansible.builtin.command:
+    argv:
+      - pgrep
+      - -u
+      - "{{ db_runtime_user }}"
+      - -f
+      - "mysqld|mariadbd"
+  register: db_runtime_user_process_check
+  changed_when: false
+  failed_when: false
+
+- name: "10-4. DB 프로세스 root 실행 여부 확인"
+  ansible.builtin.command:
+    argv:
+      - pgrep
+      - -u
+      - root
+      - -f
+      - "mysqld|mariadbd"
+  register: db_root_process_check
+  changed_when: false
+  failed_when: false
+
+- name: "10-5. DB 프로세스 실행 사용자 경고 출력"
+  ansible.builtin.debug:
+    msg: >-
+      DB process runtime user review required:
+      expected_user_running={{ db_runtime_user_process_check.rc == 0 }},
+      root_process_detected={{ db_root_process_check.rc == 0 }}.
+      Set db_process_check_mode=fail to make this a hard validation failure.
+  when:
+    - db_process_check_mode != "fail"
+    - db_runtime_user_process_check.rc != 0 or db_root_process_check.rc == 0
+
+- name: "10-5-1. DB 프로세스 실행 사용자 엄격 검증"
+  ansible.builtin.assert:
+    that:
+      - db_runtime_user_process_check.rc == 0
+      - db_root_process_check.rc != 0
+    fail_msg: "DB process must run as {{ db_runtime_user }} and must not run as root."
+    success_msg: "DB process is running as {{ db_runtime_user }} and not as root."
+  when: db_process_check_mode == "fail"
+
+- name: "10-6. DB 설정 파일 내용 조회"
+  ansible.builtin.slurp:
+    src: "{{ db_config_file }}"
+  register: db_config_file_raw
+
+- name: "10-7. Slow Query/Error 로그 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - db_config_file_content is search('(?m)^\\s*slow_query_log\\s*=\\s*1')
+      - db_config_file_content is search('(?m)^\\s*slow_query_log_file\\s*=\\s*' ~ (db_slow_query_log_file | regex_escape))
+      - db_config_file_content is search('(?m)^\\s*log_error\\s*=\\s*' ~ (db_error_log_file | regex_escape))
+    fail_msg: "DB slow query/error log settings are missing."
+    success_msg: "DB slow query/error log settings are present."
+  vars:
+    db_config_file_content: "{{ db_config_file_raw.content | b64decode }}"
+
+- name: "10-8. General Log 활성 상태 안내"
+  ansible.builtin.debug:
+    msg: >-
+      general_log is enabled in {{ db_config_file }}, but this role does not force it.
+      Set db_fail_general_log_enabled=true to fail validation for this condition.
+  vars:
+    db_config_file_content: "{{ db_config_file_raw.content | b64decode }}"
+  when:
+    - not db_enable_general_log | bool
+    - db_config_file_content is search('(?m)^\\s*general_log\\s*=\\s*1')
+
+- name: "10-8-1. General Log 엄격 검증"
+  ansible.builtin.assert:
+    that:
+      - db_config_file_content is not search('(?m)^\\s*general_log\\s*=\\s*1')
+    fail_msg: "general_log is enabled and db_fail_general_log_enabled=true."
+    success_msg: "general_log is not enabled."
+  vars:
+    db_config_file_content: "{{ db_config_file_raw.content | b64decode }}"
+  when:
+    - not db_enable_general_log | bool
+    - db_fail_general_log_enabled | bool
+
+- name: "10-9. MariaDB 패스워드 정책 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - db_config_file_content is search('simple_password_check')
+    fail_msg: "MariaDB simple_password_check settings are missing."
+    success_msg: "MariaDB password policy settings are present."
+  vars:
+    db_config_file_content: "{{ db_config_file_raw.content | b64decode }}"
+  when:
+    - (db_effective_password_policy_type | trim) == "mariadb_simple"
+    - db_apply_password_policy | bool
+
+- name: "10-10. MySQL validate_password 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - db_config_file_content is search('validate_password')
+    fail_msg: "MySQL validate_password settings are missing."
+    success_msg: "MySQL validate_password settings are present."
+  vars:
+    db_config_file_content: "{{ db_config_file_raw.content | b64decode }}"
+  when:
+    - (db_effective_password_policy_type | trim) == "mysql_validate"
+    - db_apply_password_policy | bool
+
+- name: "10-11. 패스워드 정책 기본 점검 모드 안내"
+  ansible.builtin.debug:
+    msg: >-
+      Password policy validation is advisory in default mode.
+      Detected policy type={{ db_effective_password_policy_type | trim }}.
+      Enable db_apply_password_policy=true to enforce and strictly validate config.
+  when: not db_apply_password_policy | bool

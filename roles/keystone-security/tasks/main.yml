@@ -1,0 +1,63 @@
+---
+- name: "1-0. Keystone 보안 적용 사전 점검"
+  ansible.builtin.import_tasks: precheck.yml
+
+- name: "1-1. Identity 파일 소유권/접근권한 설정"
+  ansible.builtin.import_tasks: permissions.yml
+  when: keystone_security_manage_config_permissions | bool
+
+- name: "OSAUTH-01. Identity TLS 활성화"
+  community.general.ini_file:
+    path: "{{ keystone_security_config_file }}"
+    section: ssl
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    backup: true
+    mode: "{{ keystone_security_config_mode }}"
+  loop:
+    - option: enable
+      value: "true"
+    - option: certfile
+      value: "{{ keystone_security_certfile }}"
+    - option: keyfile
+      value: "{{ keystone_security_keyfile }}"
+    - option: ca_certs
+      value: "{{ keystone_security_cafile }}"
+  when: keystone_security_enable_tls | bool
+  notify: Restart Keystone
+
+- name: "OSAUTH-02. PKI 토큰의 강력한 해시 알고리즘 사용"
+  community.general.ini_file:
+    path: "{{ keystone_security_config_file }}"
+    section: token
+    option: hash_algorithm
+    value: "{{ keystone_security_pki_hash_algorithm }}"
+    backup: true
+    mode: "{{ keystone_security_config_mode }}"
+  when: keystone_security_enable_pki_hash | bool
+  notify: Restart Keystone
+
+- name: "OSAUTH-03. Identity 서비스 max_request_body_size 설정"
+  community.general.ini_file:
+    path: "{{ keystone_security_config_file }}"
+    section: oslo_middleware
+    option: max_request_body_size
+    value: "{{ keystone_security_max_request_body_size }}"
+    backup: true
+    mode: "{{ keystone_security_config_mode }}"
+  notify: Restart Keystone
+
+- name: "OSAUTH-04. admin 토큰 비활성화"
+  community.general.ini_file:
+    path: "{{ keystone_security_config_file }}"
+    section: DEFAULT
+    option: admin_token
+    state: absent
+    backup: true
+    mode: "{{ keystone_security_config_mode }}"
+  when: keystone_security_disable_admin_token | bool
+  notify: Restart Keystone
+
+- name: "1-6. Keystone 적용 후 검증"
+  ansible.builtin.import_tasks: validate.yml
+  when: keystone_security_validate_after_apply | bool

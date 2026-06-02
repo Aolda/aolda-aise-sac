@@ -1,0 +1,6 @@
+---
+- name: Restart Kubelet
+  ansible.builtin.service:
+    name: "{{ k8s_kubelet_service_name }}"
+    state: restarted
+  when: k8s_restart_kubelet | bool

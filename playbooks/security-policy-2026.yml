@@ -1,0 +1,24 @@
+---
+- name: Apply 2026 DB security controls
+  hosts: db
+  become: true
+  roles:
+    - role: db-security
+      tags: [db, database, security, security-policy-2026]
+
+- name: Apply 2026 Docker security controls
+  hosts: docker
+  become: true
+  roles:
+    - role: docker-security
+      tags: [docker, container, security, security-policy-2026]
+
+- name: Apply 2026 Kubernetes security controls
+  hosts: k8s
+  become: true
+  roles:
+    - role: k8s-security
+      tags: [k8s, kubernetes, security, security-policy-2026]
+
+- name: Apply 2026 OpenStack security controls
+  ansible.builtin.import_playbook: openstack-security.yml

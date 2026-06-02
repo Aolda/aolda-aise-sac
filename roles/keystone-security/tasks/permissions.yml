@@ -1,0 +1,7 @@
+---
+- name: "1-1-1. Identity 설정파일 소유권 및 접근권한 설정"
+  ansible.builtin.file:
+    path: "{{ keystone_security_config_file }}"
+    owner: "{{ keystone_security_config_owner }}"
+    group: "{{ keystone_security_config_group }}"
+    mode: "{{ keystone_security_config_mode }}"

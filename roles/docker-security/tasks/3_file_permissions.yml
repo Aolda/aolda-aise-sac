@@ -1,0 +1,82 @@
+---
+# CHECK: Docker systemd unit 및 socket 경로를 대상 OS에서 확인하세요.
+
+- name: "Docker 파일 권한 대상 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: docker_permission_files
+  loop:
+    - "{{ docker_service_unit_path }}"
+    - "{{ docker_socket_unit_path }}"
+    - "{{ docker_socket_path }}"
+
+- name: "DOCKER-06. docker.service 소유권(root:root) 설정"
+  ansible.builtin.file:
+    path: "{{ docker_service_unit_path }}"
+    owner: root
+    group: root
+  when: docker_permission_files.results[0].stat.exists
+
+- name: "DOCKER-07. docker.service 파일 접근 권한(644) 설정"
+  ansible.builtin.file:
+    path: "{{ docker_service_unit_path }}"
+    mode: '0644'
+  when: docker_permission_files.results[0].stat.exists
+
+- name: "DOCKER-08. docker.socket 소유권(root:root) 설정"
+  ansible.builtin.file:
+    path: "{{ docker_socket_unit_path }}"
+    owner: root
+    group: root
+  when: docker_permission_files.results[1].stat.exists
+
+- name: "DOCKER-09. docker.socket 파일 접근 권한(644) 설정"
+  ansible.builtin.file:
+    path: "{{ docker_socket_unit_path }}"
+    mode: '0644'
+  when: docker_permission_files.results[1].stat.exists
+
+- name: "DOCKER-10. /etc/docker 소유권(root:root) 설정"
+  ansible.builtin.file:
+    path: "{{ docker_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "DOCKER-11. /etc/docker 파일 접근 권한(755) 설정"
+  ansible.builtin.file:
+    path: "{{ docker_config_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: "DOCKER-14/15. daemon.json 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ docker_daemon_config_path }}"
+  register: docker_daemon_json_permission_file
+
+- name: "DOCKER-14. daemon.json 소유권(root:root) 설정"
+  ansible.builtin.file:
+    path: "{{ docker_daemon_config_path }}"
+    owner: root
+    group: root
+  when: docker_daemon_json_permission_file.stat.exists
+
+- name: "DOCKER-15. daemon.json 파일 접근 권한 설정"
+  ansible.builtin.file:
+    path: "{{ docker_daemon_config_path }}"
+    mode: "{{ docker_daemon_config_mode }}"
+  when: docker_daemon_json_permission_file.stat.exists
+
+- name: "DOCKER-12. /var/run/docker.sock 소유권(root:docker) 설정"
+  ansible.builtin.file:
+    path: "{{ docker_socket_path }}"
+    owner: root
+    group: "{{ docker_group_name }}"
+  when: docker_permission_files.results[2].stat.exists
+
+- name: "DOCKER-13. /var/run/docker.sock 파일 접근 권한(660) 설정"
+  ansible.builtin.file:
+    path: "{{ docker_socket_path }}"
+    mode: '0660'
+  when: docker_permission_files.results[2].stat.exists

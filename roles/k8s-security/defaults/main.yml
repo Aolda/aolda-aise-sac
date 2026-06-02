@@ -1,0 +1,191 @@
+---
+k8s_kubelet_service_name: kubelet
+k8s_kubectl_config: /etc/kubernetes/admin.conf
+
+k8s_node_role: auto
+k8s_restart_kubelet: false
+k8s_validate_after_apply: true
+
+k8s_apply_control_plane: false
+k8s_apply_api_server: false
+k8s_apply_etcd_tls: false
+k8s_apply_etcd_encryption_config: false
+k8s_apply_etcd_permissions: false
+k8s_apply_kubelet: false
+k8s_apply_policies: false
+k8s_check_policies: true
+k8s_apply_admission_plugins: false
+
+k8s_manifest_dir: /etc/kubernetes/manifests
+k8s_pki_dir: /etc/kubernetes/pki
+k8s_etcd_pki_dir: /etc/kubernetes/pki/etcd
+k8s_etcd_data_dir: /var/lib/etcd
+
+k8s_apiserver_manifest: "{{ k8s_manifest_dir }}/kube-apiserver.yaml"
+k8s_controller_manager_manifest: "{{ k8s_manifest_dir }}/kube-controller-manager.yaml"
+k8s_scheduler_manifest: "{{ k8s_manifest_dir }}/kube-scheduler.yaml"
+k8s_etcd_manifest: "{{ k8s_manifest_dir }}/etcd.yaml"
+
+k8s_master_config_files:
+  - "{{ k8s_apiserver_manifest }}"
+  - "{{ k8s_controller_manager_manifest }}"
+  - "{{ k8s_scheduler_manifest }}"
+  - "{{ k8s_etcd_manifest }}"
+  - /etc/kubernetes/admin.conf
+  - /etc/kubernetes/scheduler.conf
+  - /etc/kubernetes/controller-manager.conf
+
+k8s_controller_manager_args:
+  - regexp: '^\s*- --use-service-account-credentials='
+    line: '    - --use-service-account-credentials=true'
+  - regexp: '^\s*- --service-account-private-key-file='
+    line: '    - --service-account-private-key-file={{ k8s_pki_dir }}/sa.key'
+  - regexp: '^\s*- --root-ca-file='
+    line: '    - --root-ca-file={{ k8s_pki_dir }}/ca.crt'
+  - regexp: '^\s*- --feature-gates='
+    line: '    - --feature-gates=RotateKubeletServerCertificate=true'
+
+k8s_scheduler_bind_address: 127.0.0.1
+k8s_controller_manager_bind_address: 127.0.0.1
+
+k8s_apiserver_auth_args:
+  - regexp: '^\s*- --anonymous-auth='
+    line: '    - --anonymous-auth=false'
+  - regexp: '^\s*- --service-account-lookup='
+    line: '    - --service-account-lookup=true'
+  - regexp: '^\s*- --authorization-mode='
+    line: '    - --authorization-mode=Node,RBAC'
+
+k8s_apiserver_enable_admission_plugins: NodeRestriction,AlwaysPullImages,SecurityContextDeny,EventRateLimit,PodSecurity
+k8s_apiserver_disable_admission_plugins: NamespaceLifecycle,AlwaysAdmin
+k8s_admission_control_config_file: /etc/kubernetes/admission-control-config.yaml
+k8s_enable_admission_control_config: false
+k8s_min_admission_plugin_kubernetes_minor: 25
+
+k8s_apiserver_tls_args:
+  - regexp: '^\s*- --kubelet-certificate-authority='
+    line: '    - --kubelet-certificate-authority={{ k8s_pki_dir }}/ca.crt'
+  - regexp: '^\s*- --kubelet-client-certificate='
+    line: '    - --kubelet-client-certificate={{ k8s_pki_dir }}/apiserver-kubelet-client.crt'
+  - regexp: '^\s*- --kubelet-client-key='
+    line: '    - --kubelet-client-key={{ k8s_pki_dir }}/apiserver-kubelet-client.key'
+  - regexp: '^\s*- --tls-cert-file='
+    line: '    - --tls-cert-file={{ k8s_pki_dir }}/apiserver.crt'
+  - regexp: '^\s*- --tls-private-key-file='
+    line: '    - --tls-private-key-file={{ k8s_pki_dir }}/apiserver.key'
+  - regexp: '^\s*- --client-ca-file='
+    line: '    - --client-ca-file={{ k8s_pki_dir }}/ca.crt'
+  - regexp: '^\s*- --tls-cipher-suites='
+    line: '    - --tls-cipher-suites=TLS_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256'
+
+k8s_audit_policy_file: /etc/kubernetes/audit-policy.yaml
+k8s_audit_log_path: /var/log/kubernetes/audit/audit.log
+k8s_audit_log_dir: "{{ k8s_audit_log_path | dirname }}"
+k8s_audit_log_maxage: 30
+k8s_audit_log_maxbackup: 10
+k8s_audit_log_maxsize: 100
+k8s_enable_audit_log: false
+k8s_manage_audit_policy_file: false
+k8s_audit_policy_content: |
+  apiVersion: audit.k8s.io/v1
+  kind: Policy
+  rules:
+    - level: Metadata
+
+k8s_encryption_provider_config: /etc/kubernetes/encryption-config.yaml
+k8s_enable_encryption_provider_config: false
+k8s_manage_encryption_config_file: false
+k8s_acknowledge_secret_reencryption_required: false
+k8s_encryption_config_secret: ""
+k8s_encryption_config_content: |
+  apiVersion: apiserver.config.k8s.io/v1
+  kind: EncryptionConfiguration
+  resources:
+    - resources:
+        - secrets
+      providers:
+        - aescbc:
+            keys:
+              - name: key1
+                secret: {{ k8s_encryption_config_secret }}
+        - identity: {}
+
+k8s_apiserver_etcd_tls_args:
+  - regexp: '^\s*- --etcd-certfile='
+    line: '    - --etcd-certfile={{ k8s_pki_dir }}/apiserver-etcd-client.crt'
+  - regexp: '^\s*- --etcd-keyfile='
+    line: '    - --etcd-keyfile={{ k8s_pki_dir }}/apiserver-etcd-client.key'
+  - regexp: '^\s*- --etcd-cafile='
+    line: '    - --etcd-cafile={{ k8s_etcd_pki_dir }}/ca.crt'
+
+k8s_etcd_server_args:
+  - regexp: '^\s*- --auto-tls='
+    line: '    - --auto-tls=false'
+  - regexp: '^\s*- --peer-auto-tls='
+    line: '    - --peer-auto-tls=false'
+  - regexp: '^\s*- --client-cert-auth='
+    line: '    - --client-cert-auth=true'
+  - regexp: '^\s*- --peer-client-cert-auth='
+    line: '    - --peer-client-cert-auth=true'
+  - regexp: '^\s*- --cert-file='
+    line: '    - --cert-file={{ k8s_etcd_pki_dir }}/server.crt'
+  - regexp: '^\s*- --key-file='
+    line: '    - --key-file={{ k8s_etcd_pki_dir }}/server.key'
+  - regexp: '^\s*- --peer-cert-file='
+    line: '    - --peer-cert-file={{ k8s_etcd_pki_dir }}/peer.crt'
+  - regexp: '^\s*- --peer-key-file='
+    line: '    - --peer-key-file={{ k8s_etcd_pki_dir }}/peer.key'
+  - regexp: '^\s*- --trusted-ca-file='
+    line: '    - --trusted-ca-file={{ k8s_etcd_pki_dir }}/ca.crt'
+
+k8s_kubelet_config_file: /var/lib/kubelet/config.yaml
+k8s_kubelet_pki_dir: /var/lib/kubelet/pki
+k8s_kubelet_config_files:
+  - /etc/kubernetes/kubelet.conf
+  - /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
+  - "{{ k8s_kubelet_config_file }}"
+
+k8s_kubelet_tls_cipher_suites:
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+  - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+  - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+  - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+  - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+  - TLS_RSA_WITH_AES_256_GCM_SHA384
+  - TLS_RSA_WITH_AES_128_GCM_SHA256
+
+k8s_psa_namespace: default
+k8s_apply_psa_labels: false
+k8s_psa_enforce_level: restricted
+k8s_psa_warn_level: restricted
+k8s_secure_pod_template_path: /etc/kubernetes/secure-pod-template.yaml
+k8s_create_secure_pod_template: false
+k8s_enable_pod_security_checks: true
+k8s_fail_on_policy_violation: false
+
+k8s_enable_rbac_controls: false
+k8s_rbac_namespace: "{{ k8s_psa_namespace }}"
+k8s_restricted_service_account: restricted-workload
+k8s_restricted_role_name: restricted-readonly
+k8s_restricted_role_rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+
+k8s_enable_network_policies: false
+k8s_network_policy_namespace: "{{ k8s_psa_namespace }}"
+k8s_default_deny_network_policy_name: default-deny-all
+k8s_allow_dns_network_policy_name: allow-dns-egress
+k8s_enable_dns_egress_policy: true
+
+k8s_enable_secret_controls: false
+k8s_secret_namespace: "{{ k8s_psa_namespace }}"
+k8s_secret_template_path: /etc/kubernetes/secure-secret-template.yaml
+k8s_disable_default_service_account_token_automount: false

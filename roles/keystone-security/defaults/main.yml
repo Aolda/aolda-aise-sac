@@ -1,0 +1,27 @@
+---
+keystone_security_restart_service: false
+keystone_security_validate_after_apply: true
+keystone_security_openrc_path: /root/admin-openrc
+keystone_security_cli_environment: {}
+keystone_security_service_name: apache2
+keystone_security_manage_config_permissions: false
+
+keystone_security_config_file: /etc/keystone/keystone.conf
+keystone_security_config_owner: root
+keystone_security_config_group: keystone
+keystone_security_config_mode: "0640"
+
+keystone_security_enable_tls: false
+keystone_security_tls_endpoint_change_confirmed: false
+keystone_security_validate_certs: true
+keystone_security_ca_cert: ""
+keystone_security_public_endpoint: ""
+keystone_security_tls_status_codes: [200, 300, 401, 403]
+keystone_security_certfile: /etc/keystone/ssl/certs/keystone.pem
+keystone_security_keyfile: /etc/keystone/ssl/private/keystonekey.pem
+keystone_security_cafile: /etc/keystone/ssl/certs/ca.pem
+
+keystone_security_enable_pki_hash: true
+keystone_security_pki_hash_algorithm: sha256
+keystone_security_max_request_body_size: 114688
+keystone_security_disable_admin_token: true

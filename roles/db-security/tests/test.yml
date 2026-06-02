@@ -1,0 +1,6 @@
+---
+- name: Test DB security role
+  hosts: localhost
+  become: true
+  roles:
+    - db-security

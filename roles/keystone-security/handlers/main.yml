@@ -1,0 +1,6 @@
+---
+- name: Restart Keystone
+  ansible.builtin.service:
+    name: "{{ keystone_security_service_name }}"
+    state: restarted
+  when: keystone_security_restart_service | bool

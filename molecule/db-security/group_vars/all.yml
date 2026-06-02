@@ -1,0 +1,6 @@
+---
+# Molecule db-security scenario defaults for Ubuntu MariaDB test VM.
+# This file affects only the molecule/db-security scenario.
+# Change these paths when testing another OS or MySQL/MariaDB layout.
+db_config_file: /etc/mysql/mariadb.conf.d/50-server.cnf
+db_login_unix_socket: /run/mysqld/mysqld.sock

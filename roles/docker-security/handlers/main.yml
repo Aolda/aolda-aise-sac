@@ -1,0 +1,21 @@
+---
+- name: Restart Docker
+  ansible.builtin.service:
+    name: "{{ docker_service_name }}"
+    state: restarted
+  when: docker_restart_service | bool
+
+- name: Reload Docker Daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+    name: "{{ docker_service_name }}"
+    state: reloaded
+  when: docker_restart_service | bool
+
+- name: Restart Auditd
+  ansible.builtin.service:
+    name: "{{ auditd_service_name }}"
+    state: restarted
+    enabled: true
+  when: docker_restart_auditd | bool
+  failed_when: false

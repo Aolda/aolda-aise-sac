@@ -1,0 +1,25 @@
+---
+- name: "Docker 패키지 및 그룹 사용자 관리 task 포함"
+  ansible.builtin.include_tasks: 1_version_and_users.yml
+
+- name: "Docker audit 규칙 설정 task 포함"
+  ansible.builtin.include_tasks: 2_audit_config.yml
+  when: docker_apply_audit_config | bool
+
+- name: "Docker 주요 파일 소유권 및 권한 설정 task 포함"
+  ansible.builtin.include_tasks: 3_file_permissions.yml
+
+- name: "Docker daemon 보안 설정 task 포함"
+  ansible.builtin.include_tasks: 4_daemon_security.yml
+  when:
+    - docker_enable_daemon_config_extension | bool
+    - docker_apply_daemon_security | bool
+    - docker_daemon_config | length > 0
+
+- name: "Docker 컨테이너 런타임 보안 점검 task 포함"
+  ansible.builtin.include_tasks: 5_container_runtime_checks.yml
+  when: docker_enable_runtime_container_checks | bool
+
+- name: "Docker 보안 설정 검증 task 포함"
+  ansible.builtin.include_tasks: validate.yml
+  when: docker_validate_after_apply | bool

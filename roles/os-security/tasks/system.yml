@@ -8,9 +8,11 @@
     state: absent
     purge: yes
   loop: "{{ legacy_ntp_packages }}"
+  register: legacy_ntp_remove
 
 - name: "시스템 시간대(Timezone)를 설정하여 로그 타임라인 무결성 확보"
   ansible.builtin.command: "timedatectl set-timezone {{ system_timezone }}"
+  register: timezone_update
   changed_when: false 
   failed_when: false 
 
@@ -53,12 +55,15 @@
     state: present
     update_cache: yes
   when: timesyncd_check.rc != 0
+  register: timesyncd_install
 
 - name: "타임 데몬 서비스({{ service_timesyncd | default('systemd-timesyncd') }}) 활성화 및 구동"
   ansible.builtin.service:
     name: "{{ service_timesyncd | default('systemd-timesyncd') }}"
     state: started
     enabled: yes
+  register: timesyncd_service
+  ignore_errors: "{{ not (apply_policy | bool) }}"
 
 - name: "시스템 커널 레벨의 NTP 자동 동기화 스위치 강제 활성화"
   ansible.builtin.command: timedatectl set-ntp true

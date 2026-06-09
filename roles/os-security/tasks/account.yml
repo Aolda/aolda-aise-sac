@@ -20,6 +20,7 @@
     regexp: '^#?\s*PasswordAuthentication'
     line: "PasswordAuthentication {{ sshd_password_authentication | default('yes') }}"
     state: present
+  register: sshd_pw_auth_update
   notify: restart ssh
 
 - name: "SSH 권한 분리 디렉토리 생성 확인"
@@ -29,6 +30,7 @@
     owner: "{{ file_owner_root }}"
     group: "{{ file_group_root }}"
     mode: "{{ file_mode_755 }}"
+  register: sshd_config_update
   
 - name: "SSH 설정 파일에서 root 원격 접속 제한"
   ansible.builtin.lineinfile:
@@ -37,6 +39,7 @@
     line: "PermitRootLogin {{ sshd_permit_root_login }}"
     state: present
     validate: 'sshd -t -f %s'
+  register: sshd_root_login_update
   notify: restart ssh
 
 - name: "패스워드 최대 사용 기간 설정"
@@ -45,6 +48,7 @@
     regexp: '^PASS_MAX_DAYS'
     line: "PASS_MAX_DAYS {{ os_pass_max_days }}"
     state: present
+  register: pass_max_days_update
 
 - name: "패스워드 복잡도 검증 모듈({{ package_pam_pwquality | default('libpam-pwquality') }}) 사전 설치"
   ansible.builtin.apt:
@@ -55,7 +59,38 @@
     DEBIAN_FRONTEND: noninteractive
 
 
-# [faillock 인증 사슬 붕괴 방지: 우분투 표준 프로필 방식 도입]
+# [계정 접속 잠금 정책]
+- name: "계정 접속 잠금 횟수 제한 검증"
+  ansible.builtin.shell: grep -q "deny = {{ pam_deny_count }}" /etc/security/faillock.conf 2>/dev/null
+  register: faillock_deny_update
+  changed_when: faillock_deny_update.rc != 0
+  failed_when: false
+  check_mode: no
+
+- name: "계정 잠금 유지 시간 설정 검증"
+  ansible.builtin.shell: grep -q "unlock_time = {{ pam_unlock_time }}" /etc/security/faillock.conf 2>/dev/null
+  register: faillock_unlock_update
+  changed_when: faillock_unlock_update.rc != 0
+  failed_when: false
+  check_mode: no
+
+- name: "계정 접속 잠금 횟수 제한 적용"
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^\s*deny\s*='
+    line: 'deny = {{ pam_deny_count }}'
+    create: yes
+    mode: '0644'
+  when: apply_policy | bool
+
+- name: "계정 잠금 유지 시간 설정 적용"
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^\s*unlock_time\s*='
+    line: 'unlock_time = {{ pam_unlock_time }}'
+    create: yes
+    mode: '0644'
+  when: apply_policy | bool
 
 - name: "pam_faillock 시스템 커스텀 프로필 파일 생성"
   ansible.builtin.copy:
@@ -78,6 +113,37 @@
     DEBIAN_FRONTEND: noninteractive
   changed_when: false
 
+
+# [패스워드 복잡도 정책]
+- name: "패스워드 최소 길이 강제 점검"
+  ansible.builtin.shell: grep -E "pam_pwquality.so.*minlen={{ pam_pwquality_minlen }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+  register: pwq_minlen_update
+  changed_when: false
+  failed_when: false
+
+- name: "패스워드 내 소문자 최소 개수 포함 점검"
+  ansible.builtin.shell: grep -E "pam_pwquality.so.*lcredit={{ pam_pwquality_lcredit }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+  register: pwq_lcredit_update
+  changed_when: false
+  failed_when: false
+
+- name: "패스워드 내 대문자 최소 개수 포함 점검"
+  ansible.builtin.shell: grep -E "pam_pwquality.so.*ucredit={{ pam_pwquality_ucredit }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+  register: pwq_ucredit_update
+  changed_when: false
+  failed_when: false
+
+- name: "패스워드 내 숫자 최소 개수 포함 점검"
+  ansible.builtin.shell: grep -E "pam_pwquality.so.*dcredit={{ pam_pwquality_dcredit }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+  register: pwq_dcredit_update
+  changed_when: false
+  failed_when: false
+
+- name: "패스워드 내 특수문자 최소 개수 포함 점검"
+  ansible.builtin.shell: grep -E "pam_pwquality.so.*ocredit={{ pam_pwquality_ocredit }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+  register: pwq_ocredit_update
+  changed_when: false
+  failed_when: false
 
 - name: "패스워드 복잡도 정책 및 root 적용 강제"
   ansible.builtin.lineinfile:

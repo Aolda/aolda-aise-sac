@@ -1,5 +1,7 @@
 ---
 # CHECK: 권한을 제한할 실제 일반 DB 계정을 db_regular_users에 지정하세요.
+# db_privilege_exempt_users는 권한 회수 예외 목록입니다.
+# 계정 삭제 보호는 db_account_delete_protected_users 계열 변수로 별도 관리합니다.
 
 - name: "3-1. 일반 사용자에게서 GRANT OPTION 권한 회수"
   ansible.mysql.mysql_query:

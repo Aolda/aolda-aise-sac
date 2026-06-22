@@ -29,7 +29,7 @@ AISE는 Ansible role 단위로 인프라 컴포넌트 보안 설정과 점검을
 
 | 컴포넌트 | 자동 적용 중심 | 기본 비활성/수동 중심 |
 | --- | --- | --- |
-| DB | 계정 정리, 권한 제한, 로그/설정 파일 권한, slow/error log 설정 | `general_log`, 패키지 업데이트, 운영 계정 예외 검토 |
+| DB | 명시된 위험 계정 정리, 삭제 보호 precheck/report, 권한 제한, 로그/설정 파일 권한, slow/error log 설정 | 전체 allowlist 기반 계정 삭제, `general_log`, 패키지 업데이트, 운영 계정 예외 검토 |
 | Docker | systemd/socket/daemon 파일 권한, runtime 점검 | audit rule 적용, Content Trust 강제, SELinux/PIDs/no-new-privileges/컨테이너 SSH 자동 조치, daemon JSON 보안 옵션 병합 |
 | Kubernetes | 노드 역할별 precheck, 백업, validate, check-only 정책 점검 | API server/etcd/kubelet 위험 변경, NetworkPolicy/PSA 강제 적용, Secret 재암호화 |
 | OpenStack | Keystone/Nova/Cinder/Glance 인증 설정, max_request_body_size, admin_token 제거, validate | 전체 TLS 전환, Horizon Secure Cookie, Cinder volume encryption, conf 파일 권한 hardening, Neutron auth_strategy 추가 보강 |

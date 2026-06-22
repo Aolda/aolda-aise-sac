@@ -18,6 +18,12 @@ db_test_users:
 
 db_unnecessary_accounts: []
 db_disallowed_account_hosts: []
+db_account_delete_protected_users:
+  - root
+  - mysql
+  - debian-sys-maint
+db_account_delete_protected_users_extra: []
+db_include_privilege_exempt_users_in_delete_protection: true
 db_regular_users: []
 db_privilege_exempt_users:
   - prometheus

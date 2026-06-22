@@ -17,7 +17,7 @@
 
 | ID | 영역 | 컴포넌트 | 원본 보안 항목 | 구현 방향 | 세부 구현 내용 | 관련 파일 | 기본 적용 여부 | 우리 환경 확인 사항 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DB-01 | DB | MariaDB/MySQL | 불필요 DB 계정 제거 | `자동 조치` | anonymous, test, 불필요 계정, 허용되지 않은 host 계정을 제거해 미사용 계정 공격면을 줄임. 보호/예외 계정 변수로 운영 계정 제외 가능 | `roles/db-security/tasks/1_accounts_password.yml` | 적용 또는 목록 기반 조건부 적용 | 서비스 계정, 백업 계정, DBA 계정이 제거 대상에 포함되지 않는지 확인 |
+| DB-01 | DB | MariaDB/MySQL | 불필요 DB 계정 제거 | `자동 조치` | 전체 허용 목록 방식으로 알 수 없는 계정을 삭제하지 않음. anonymous, test/guest, 운영자가 명시한 불필요 계정, 허용되지 않은 user@host 조합만 제거하고 DB Account Report로 미분류 계정을 안내. 삭제 보호 목록은 `db_account_delete_protected_users` 계열 변수로, 권한 회수 예외는 `db_privilege_exempt_users`로 분리 | `roles/db-security/tasks/1_accounts_password.yml` | 적용 또는 목록 기반 조건부 적용 | 서비스 계정, 백업 계정, DBA 계정이 제거 대상에 포함되지 않는지 확인하고 환경별 삭제 보호 목록에 추가 |
 | DB-02 | DB | MariaDB/MySQL | 취약한 패스워드 사용 제한 | `점검 중심` | DB 종류와 버전을 감지하고 지원 정책을 안내. 실제 `simple_password_check`/`validate_password` 설정과 component 설치는 `db_apply_password_policy=true`일 때만 수행 | `roles/db-security/tasks/0_detect_version.yml`, `roles/db-security/tasks/1_accounts_password.yml` | 기본 점검/권고. 강제 적용 비활성 | MySQL/MariaDB 버전, plugin/component 지원 여부, 기존 암호 정책 충돌 확인 |
 | DB-03 | DB | MariaDB/MySQL | 타 사용자에 권한 부여 옵션 제한 | `자동 조치` | 일반 사용자가 다른 사용자에게 권한을 재위임하지 못하도록 GRANT OPTION을 회수. 예외 계정 변수 유지 | `roles/db-security/tasks/2_privileges.yml` | `db_regular_users` 목록 기반 조건부 적용 | 운영 DBA 계정과 자동화 계정은 예외 목록에 포함 |
 | DB-04 | DB | MariaDB/MySQL | DB 사용자 계정 정보 테이블 접근 권한 제한 | `자동 조치` | 일반 사용자에게서 `mysql.user` 직접 접근 권한을 회수해 계정/해시 정보 노출을 줄임. 모니터링 계정 예외 가능 | `roles/db-security/tasks/2_privileges.yml` | `db_regular_users` 목록 기반 조건부 적용 | Prometheus exporter, 모니터링 계정의 필요 권한 확인 |

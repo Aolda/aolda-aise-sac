@@ -60,20 +60,6 @@
 
 
 # [계정 접속 잠금 정책]
-- name: "계정 접속 잠금 횟수 제한 검증"
-  ansible.builtin.shell: grep -q "deny = {{ pam_deny_count }}" /etc/security/faillock.conf 2>/dev/null
-  register: faillock_deny_update
-  changed_when: faillock_deny_update.rc != 0
-  failed_when: false
-  check_mode: no
-
-- name: "계정 잠금 유지 시간 설정 검증"
-  ansible.builtin.shell: grep -q "unlock_time = {{ pam_unlock_time }}" /etc/security/faillock.conf 2>/dev/null
-  register: faillock_unlock_update
-  changed_when: faillock_unlock_update.rc != 0
-  failed_when: false
-  check_mode: no
-
 - name: "계정 접속 잠금 횟수 제한 적용"
   ansible.builtin.lineinfile:
     path: /etc/security/faillock.conf
@@ -81,7 +67,7 @@
     line: 'deny = {{ pam_deny_count }}'
     create: yes
     mode: '0644'
-  when: apply_policy | bool
+  register: faillock_deny_update
 
 - name: "계정 잠금 유지 시간 설정 적용"
   ansible.builtin.lineinfile:
@@ -90,7 +76,7 @@
     line: 'unlock_time = {{ pam_unlock_time }}'
     create: yes
     mode: '0644'
-  when: apply_policy | bool
+  register: faillock_unlock_update
 
 - name: "pam_faillock 시스템 커스텀 프로필 파일 생성"
   ansible.builtin.copy:
@@ -115,39 +101,49 @@
 
 
 # [패스워드 복잡도 정책]
-- name: "패스워드 최소 길이 강제 점검"
-  ansible.builtin.shell: grep -E "pam_pwquality.so.*minlen={{ pam_pwquality_minlen }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+- name: "패스워드 최소 길이 강제 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*minlen\s*='
+    line: "minlen = {{ pam_pwquality_minlen }}"
+    create: yes
   register: pwq_minlen_update
-  changed_when: false
-  failed_when: false
 
-- name: "패스워드 내 소문자 최소 개수 포함 점검"
-  ansible.builtin.shell: grep -E "pam_pwquality.so.*lcredit={{ pam_pwquality_lcredit }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+- name: "패스워드 내 소문자 최소 개수 포함 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*lcredit\s*='
+    line: "lcredit = {{ pam_pwquality_lcredit }}"
+    create: yes
   register: pwq_lcredit_update
-  changed_when: false
-  failed_when: false
 
-- name: "패스워드 내 대문자 최소 개수 포함 점검"
-  ansible.builtin.shell: grep -E "pam_pwquality.so.*ucredit={{ pam_pwquality_ucredit }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+- name: "패스워드 내 대문자 최소 개수 포함 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*ucredit\s*='
+    line: "ucredit = {{ pam_pwquality_ucredit }}"
+    create: yes
   register: pwq_ucredit_update
-  changed_when: false
-  failed_when: false
 
-- name: "패스워드 내 숫자 최소 개수 포함 점검"
-  ansible.builtin.shell: grep -E "pam_pwquality.so.*dcredit={{ pam_pwquality_dcredit }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+- name: "패스워드 내 숫자 최소 개수 포함 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*dcredit\s*='
+    line: "dcredit = {{ pam_pwquality_dcredit }}"
+    create: yes
   register: pwq_dcredit_update
-  changed_when: false
-  failed_when: false
 
-- name: "패스워드 내 특수문자 최소 개수 포함 점검"
-  ansible.builtin.shell: grep -E "pam_pwquality.so.*ocredit={{ pam_pwquality_ocredit }}" {{ path_pam_password | default('/etc/pam.d/common-password') }}
+- name: "패스워드 내 특수문자 최소 개수 포함 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*ocredit\s*='
+    line: "ocredit = {{ pam_pwquality_ocredit }}"
+    create: yes
   register: pwq_ocredit_update
-  changed_when: false
-  failed_when: false
 
-- name: "패스워드 복잡도 정책 및 root 적용 강제"
+- name: "PAM 공통 패스워드 설정에 pwquality 연동 및 root 적용 강제"
   ansible.builtin.lineinfile:
     path: "{{ path_pam_password | default('/etc/pam.d/common-password') }}"
     regexp: '^password\s+requisite\s+pam_pwquality.so'
-    line: "password requisite pam_pwquality.so enforce_for_root retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} lcredit={{ pam_pwquality_lcredit }} ucredit={{ pam_pwquality_ucredit }} dcredit={{ pam_pwquality_dcredit }} ocredit={{ pam_pwquality_ocredit }}"
+    line: "password requisite pam_pwquality.so enforce_for_root retry={{ pam_pwquality_retry }}"
     state: present

@@ -4,7 +4,6 @@
 
 ### 가. 보안조치 기본정보
 * **보고서 생성 일시:** {{ now(fmt='%Y-%m-%d %H:%M:%S') }}
-* **대상 노드 점검 일시 (Managed Node):** {{ ansible_date_time.date }} {{ ansible_date_time.time }}
 * **대상 노드 (Host):** {{ inventory_hostname }}
 * **자동 조치(Apply-Policy) 모드:** {{ apply_policy | bool | lower }}
 
@@ -23,7 +22,6 @@
   pwq_dcredit_update | default({'changed': false, 'failed': false}),
   pwq_ocredit_update | default({'changed': false, 'failed': false}),
   ww_remove | default({'changed': false, 'failed': false}),
-  ww_remove | default({'changed': false, 'failed': false}),
   tcp_wrapper_update | default({'changed': false, 'failed': false}),
   timezone_update | default({'changed': false, 'failed': false}),
   legacy_ntp_remove | default({'changed': false, 'failed': false}),
@@ -34,7 +32,7 @@
   standalone_service_disable | default({'changed': false, 'failed': false})
 ] %}
 
-{% set total = 21 %}
+{% set total = target_results | length %}
 {% set changed_count = target_results | selectattr('changed', 'equalto', true) | list | length %}
 {% set failed_count = target_results | selectattr('failed', 'defined') | selectattr('failed', 'equalto', true) | list | length %}
 {% set success_count = changed_count - failed_count %}
@@ -60,38 +58,37 @@
 ### 가. Node (OS)
 
 #### 1.1 계정 및 인증 보안 정책 // os-security
-|조치항목 이름|조치 대상여부(Changed)|정책 적용결과(Success)
+|조치항목 이름|조치 대상여부(true/false)|정책 적용결과(true/false)
 |-|-|-
-|SSH 데몬 설정 파일 경로 지정 (path_sshd_config)|{{ sshd_config_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not sshd_config_update.failed | default(false)) else 'false' }}
-|root 원격 직접 접속 전면 차단 (sshd_permit_root_login)|{{ sshd_root_login_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not sshd_root_login_update.failed | default(false)) else 'false' }}
-|패스워드 기반 인증 허용 여부 통제 (sshd_password_authentication)|{{ sshd_pw_auth_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not sshd_pw_auth_update.failed | default(false)) else 'false' }}
-|패스워드 90일 주기 변경 강제 (os_pass_max_days)|{{ pass_max_days_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not pass_max_days_update.failed | default(false)) else 'false' }}
-|5회 연속 실패 시 계정 접속 잠금 (pam_deny_count)|{{ faillock_deny_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not faillock_deny_update.failed | default(false)) else 'false' }}
-|계정 잠금 대기 시간 10분 설정 (pam_unlock_time)|{{ faillock_unlock_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not faillock_unlock_update.failed | default(false)) else 'false' }}
-|패스워드 최소 8자리 이상 길이 강제 (pam_pwquality_minlen)|{{ pwq_minlen_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not pwq_minlen_update.failed | default(false)) else 'false' }}
-|패스워드 내 소문자 최소 1개 필수 포함 (pam_pwquality_lcredit)|{{ pwq_lcredit_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not pwq_lcredit_update.failed | default(false)) else 'false' }}
-|패스워드 내 대문자 최소 1개 필수 포함 (pam_pwquality_ucredit)|{{ pwq_ucredit_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not pwq_ucredit_update.failed | default(false)) else 'false' }}
-|패스워드 내 숫자 최소 1개 필수 포함 (pam_pwquality_dcredit)|{{ pwq_dcredit_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not pwq_dcredit_update.failed | default(false)) else 'false' }}
-|패스워드 내 특수문자 최소 1개 필수 포함 (pam_pwquality_ocredit)|{{ pwq_ocredit_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not pwq_ocredit_update.failed | default(false)) else 'false' }}
+|SSH 데몬 설정 파일 경로 지정 (path_sshd_config)|{{ sshd_config_update.changed | default(false) | lower }}|{{ 'true' if (not sshd_config_update.failed | default(false) and (apply_policy | bool or not sshd_config_update.changed | default(false))) else 'false' }}
+|root 원격 직접 접속 전면 차단 (sshd_permit_root_login)|{{ sshd_root_login_update.changed | default(false) | lower }}|{{ 'true' if (not sshd_root_login_update.failed | default(false) and (apply_policy | bool or not sshd_root_login_update.changed | default(false))) else 'false' }}
+|패스워드 기반 인증 허용 여부 통제 (sshd_password_authentication)|{{ sshd_pw_auth_update.changed | default(false) | lower }}|{{ 'true' if (not sshd_pw_auth_update.failed | default(false) and (apply_policy | bool or not sshd_pw_auth_update.changed | default(false))) else 'false' }}
+|패스워드 90일 주기 변경 강제 (os_pass_max_days)|{{ pass_max_days_update.changed | default(false) | lower }}|{{ 'true' if (not pass_max_days_update.failed | default(false) and (apply_policy | bool or not pass_max_days_update.changed | default(false))) else 'false' }}
+|5회 연속 실패 시 계정 접속 잠금 (pam_deny_count)|{{ faillock_deny_update.changed | default(false) | lower }}|{{ 'true' if (not faillock_deny_update.failed | default(false) and (apply_policy | bool or not faillock_deny_update.changed | default(false))) else 'false' }}
+|계정 잠금 대기 시간 10분 설정 (pam_unlock_time)|{{ faillock_unlock_update.changed | default(false) | lower }}|{{ 'true' if (not faillock_unlock_update.failed | default(false) and (apply_policy | bool or not faillock_unlock_update.changed | default(false))) else 'false' }}
+|패스워드 최소 8자리 이상 길이 강제 (pam_pwquality_minlen)|{{ pwq_minlen_update.changed | default(false) | lower }}|{{ 'true' if (not pwq_minlen_update.failed | default(false) and (apply_policy | bool or not pwq_minlen_update.changed | default(false))) else 'false' }}
+|패스워드 내 소문자 최소 1개 필수 포함 (pam_pwquality_lcredit)|{{ pwq_lcredit_update.changed | default(false) | lower }}|{{ 'true' if (not pwq_lcredit_update.failed | default(false) and (apply_policy | bool or not pwq_lcredit_update.changed | default(false))) else 'false' }}
+|패스워드 내 대문자 최소 1개 필수 포함 (pam_pwquality_ucredit)|{{ pwq_ucredit_update.changed | default(false) | lower }}|{{ 'true' if (not pwq_ucredit_update.failed | default(false) and (apply_policy | bool or not pwq_ucredit_update.failed | default(false))) else 'false' }}
+|패스워드 내 숫자 최소 1개 필수 포함 (pam_pwquality_dcredit)|{{ pwq_dcredit_update.changed | default(false) | lower }}|{{ 'true' if (not pwq_dcredit_update.failed | default(false) and (apply_policy | bool or not pwq_dcredit_update.changed | default(false))) else 'false' }}
+|패스워드 내 특수문자 최소 1개 필수 포함 (pam_pwquality_ocredit)|{{ pwq_ocredit_update.changed | default(false) | lower }}|{{ 'true' if (not pwq_ocredit_update.failed | default(false) and (apply_policy | bool or not pwq_ocredit_update.changed | default(false))) else 'false' }}
 
 #### 1.2 파일 시스템 및 접근 제어 정책 // os-security
-|조치항목 이름|조치 대상여부(Changed)|정책 적용결과(Success)
+|조치항목 이름|조치 대상여부(true/false)|정책 적용결과(true/false)
 |-|-|-
-|실제 물리 디스크만 제한적 스캔 (os_scan_fstypes)|{{ ww_remove.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not ww_remove.failed | default(false)) else 'false' }}
-|필수 임시 디렉터리 권한 회수 예외 처리 (os_scan_exclude_paths)|{{ ww_remove.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not ww_remove.failed | default(false)) else 'false' }}
-|외부 인터넷 접근 원천 차단 허용 IP (allowed_ssh_ips)|{{ tcp_wrapper_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not tcp_wrapper_update.failed | default(false)) else 'false' }}
+|물리 디스크 World-writable 권한 회수 (os_scan_fstypes)|{{ ww_remove.changed | default(false) | lower }}|{{ 'true' if (not ww_remove.failed | default(false) and (apply_policy | bool or not ww_remove.changed | default(false))) else 'false' }}
+|외부 인터넷 접근 원천 차단 허용 IP (allowed_ssh_ips)|{{ tcp_wrapper_update.changed | default(false) | lower }}|{{ 'true' if (not tcp_wrapper_update.failed | default(false) and (apply_policy | bool or not tcp_wrapper_update.changed | default(false))) else 'false' }}
 
 #### 1.3 시스템 서비스 및 타임 동기화 정책 // os-security
-|조치항목 이름|조치 대상여부(Changed)|정책 적용결과(Success)
+|조치항목 이름|조치 대상여부(true/false)|정책 적용결과(true/false)
 |-|-|-
-|표준 시간대(KST) 강제 일치 (system_timezone)|{{ timezone_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not timezone_update.failed | default(false)) else 'false' }}
-|레거시 타임 데몬 전역 완전 삭제 (legacy_ntp_packages)|{{ legacy_ntp_remove.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not legacy_ntp_remove.failed | default(false)) else 'false' }}
-|Ubuntu 최신 표준 타임 패키지 설치 강제 (package_timesyncd)|{{ timesyncd_install.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not timesyncd_install.failed | default(false)) else 'false' }}
-|표준 타임 데몬 자동 실행 강제 유지 (service_timesyncd)|{{ timesyncd_service.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not timesyncd_service.failed | default(false)) else 'false' }}
+|표준 시간대(KST) 강제 일치 (system_timezone)|{{ timezone_update.changed | default(false) | lower }}|{{ 'true' if (not timezone_update.failed | default(false) and (apply_policy | bool or not timezone_update.changed | default(false))) else 'false' }}
+|레거시 타임 데몬 전역 완전 삭제 (legacy_ntp_packages)|{{ legacy_ntp_remove.changed | default(false) | lower }}|{{ 'true' if (not legacy_ntp_remove.failed | default(false) and (apply_policy | bool or not legacy_ntp_remove.changed | default(false))) else 'false' }}
+|Ubuntu 최신 표준 타임 패키지 설치 강제 (package_timesyncd)|{{ timesyncd_install.changed | default(false) | lower }}|{{ 'true' if (not timesyncd_install.failed | default(false) and (apply_policy | bool or not timesyncd_install.changed | default(false))) else 'false' }}
+|표준 타임 데몬 자동 실행 강제 유지 (service_timesyncd)|{{ timesyncd_service.changed | default(false) | lower }}|{{ 'true' if (not timesyncd_service.failed | default(false) and (apply_policy | bool or not timesyncd_service.changed | default(false))) else 'false' }}
 
 #### 1.4 공격 표면 최소화 정책 // os-security
-|조치항목 이름|조치 대상여부(Changed)|정책 적용결과(Success)
+|조치항목 이름|조치 대상여부(true/false)|정책 적용결과(true/false)
 |-|-|-
-|불필요한 원격 쉘 패키지 영구 삭제 (unnecessary_packages)|{{ unnecessary_pkg_remove.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not unnecessary_pkg_remove.failed | default(false)) else 'false' }}
-|미사용 슈퍼 데몬 서비스 원천 차단 (xinetd_vulnerable_services)|{{ xinetd_service_update.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not xinetd_service_update.failed | default(false)) else 'false' }}
-|통신 포트 비활성화 및 독립 데몬 통제 (standalone_services_to_disable)|{{ standalone_service_disable.changed | default(false) | lower }}|{{ 'true' if (apply_policy | bool and not standalone_service_disable.failed | default(false)) else 'false' }}
+|불필요한 원격 쉘 패키지 영구 삭제 (unnecessary_packages)|{{ unnecessary_pkg_remove.changed | default(false) | lower }}|{{ 'true' if (not unnecessary_pkg_remove.failed | default(false) and (apply_policy | bool or not unnecessary_pkg_remove.changed | default(false))) else 'false' }}
+|미사용 슈퍼 데몬 서비스 원천 차단 (xinetd_vulnerable_services)|{{ xinetd_service_update.changed | default(false) | lower }}|{{ 'true' if (not xinetd_service_update.failed | default(false) and (apply_policy | bool or not xinetd_service_update.changed | default(false))) else 'false' }}
+|통신 포트 비활성화 및 독립 데몬 통제 (standalone_services_to_disable)|{{ standalone_service_disable.changed | default(false) | lower }}|{{ 'true' if (not standalone_service_disable.failed | default(false) and (apply_policy | bool or not standalone_service_disable.changed | default(false))) else 'false' }}

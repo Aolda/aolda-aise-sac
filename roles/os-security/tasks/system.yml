@@ -13,7 +13,6 @@
 - name: "시스템 시간대(Timezone)를 설정하여 로그 타임라인 무결성 확보"
   ansible.builtin.command: "timedatectl set-timezone {{ system_timezone }}"
   register: timezone_update
-  changed_when: false 
   failed_when: false 
 
 - name: "시간대 설정 파일(/etc/localtime, /etc/timezone) 권한 및 소유자 보호 (644 권한)"
@@ -57,13 +56,22 @@
   when: timesyncd_check.rc != 0
   register: timesyncd_install
 
-- name: "타임 데몬 서비스({{ service_timesyncd | default('systemd-timesyncd') }}) 활성화 및 구동"
+
+- name: "타임 데몬 서비스({{ service_timesyncd | default('systemd-timesyncd') }}) 활성화 및 구동 시도"
   ansible.builtin.service:
     name: "{{ service_timesyncd | default('systemd-timesyncd') }}"
     state: started
     enabled: yes
-  register: timesyncd_service
-  ignore_errors: "{{ not (apply_policy | bool) }}"
+  register: _timesyncd_service_raw
+  ignore_errors: yes
+
+- name: "점검 모드 의존성 역설 해결을 위한 논리적 상태값 재조정 (Sanitize)"
+  ansible.builtin.set_fact:
+    timesyncd_service:
+      # 서비스가 실제로 변경되었거나, apply_policy=false일 때 패키지 설치가 필요한상황이면 조치 대상으로 강제 인식
+      changed: "{{ _timesyncd_service_raw.changed | default(false) or (not (apply_policy | bool) and timesyncd_install.changed | default(false)) }}"
+      # apply_policy=true일 때 발생한 에러만 failed로 인정
+      failed: "{{ _timesyncd_service_raw.failed | default(false) and (apply_policy | bool) }}"
 
 - name: "시스템 커널 레벨의 NTP 자동 동기화 스위치 강제 활성화"
   ansible.builtin.command: timedatectl set-ntp true

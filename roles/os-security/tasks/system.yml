@@ -11,9 +11,9 @@
   register: legacy_ntp_remove
 
 - name: "시스템 시간대(Timezone)를 설정하여 로그 타임라인 무결성 확보"
-  ansible.builtin.command: "timedatectl set-timezone {{ system_timezone }}"
+  ansible.builtin.timezone:
+    name: "{{ system_timezone }}"
   register: timezone_update
-  failed_when: false 
 
 - name: "시간대 설정 파일(/etc/localtime, /etc/timezone) 권한 및 소유자 보호 (644 권한)"
   ansible.builtin.file:
@@ -47,6 +47,7 @@
   register: timesyncd_check
   failed_when: false
   changed_when: false
+  check_mode: false
 
 - name: "{{ package_timesyncd | default('systemd-timesyncd') }} 패키지 명시적 설치 (미설치 시에만 실행)"
   ansible.builtin.apt:

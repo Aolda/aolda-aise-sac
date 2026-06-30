@@ -8,7 +8,6 @@
     state: absent
     purge: yes
   loop: "{{ unnecessary_packages }}"
-  register: unnecessary_pkg_remove
 
 
 # [xinetd 기반 서비스 비활성화]
@@ -25,7 +24,6 @@
     replace: 'disable = yes'
   loop: "{{ xinetd_files_stat.results }}"
   when: item.stat.exists
-  register: xinetd_service_update
   notify: restart xinetd
 
 
@@ -37,7 +35,6 @@
     enabled: no
     masked: yes
   loop: "{{ standalone_services_to_disable }}"
-  register: standalone_service_disable
   failed_when: false
 
 

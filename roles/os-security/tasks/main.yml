@@ -1,20 +1,13 @@
 ---
-- name: "OS 보안 설정 조치"
-  block:
-    - name: "[OS 파트] 1. 계정 및 인증 통제 영역"
-      ansible.builtin.include_tasks: account.yml
 
-    - name: "[OS 파트] 2. 주요 설정 파일 및 디렉터리 권한 통제 영역"
-      ansible.builtin.include_tasks: file.yml
+- name: "[OS 파트] 1. 계정 및 인증 통제 영역"
+  ansible.builtin.include_tasks: account.yml
 
-    - name: "[OS 파트] 3. 불필요한 서비스 및 데몬 통제 영역"
-      ansible.builtin.include_tasks: service.yml
+- name: "[OS 파트] 2. 주요 설정 파일 및 디렉터리 권한 통제 영역"
+  ansible.builtin.include_tasks: file.yml
 
-    - name: "[OS 파트] 4. 시스템 유지보수 및 인프라 운영 영역"
-      ansible.builtin.include_tasks: system.yml
+- name: "[OS 파트] 3. 불필요한 서비스 및 데몬 통제 영역"
+  ansible.builtin.include_tasks: service.yml
 
-  # apply_policy가 false면 check_mode가 true가 되어 시스템을 변경하지 않고 점검만 수행합
-  check_mode: "{{ not (apply_policy | bool) }}"
-
-- name: "[OS 파트] 5. 보안 조치 결과 보고서 생성 영역"
-  ansible.builtin.include_tasks: report.yml
+- name: "[OS 파트] 4. 시스템 유지보수 및 인프라 운영 영역"
+  ansible.builtin.include_tasks: system.yml

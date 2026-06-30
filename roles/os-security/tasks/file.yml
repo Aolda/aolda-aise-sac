@@ -1,7 +1,7 @@
 ---
 # 주요 설정 파일 및 디렉터리 권한 통제 영역
 
-- name: "netbase 패키 설치 여부 사전 점검"
+- name: "netbase 패키지 설치 여부 사전 점검"
   ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "{{ package_netbase }}"
   register: netbase_check
   failed_when: false
@@ -79,7 +79,6 @@
     owner: "{{ file_owner_root | default('root') }}"
     group: "{{ file_group_root | default('root') }}"
     mode: "{{ file_mode_644 | default('0644') }}"
-  register: tcp_wrapper_update
 
 
 - name: "TCP Wrapper {{ path_hosts_deny | default('/etc/hosts.deny') }}에 ALL 차단 설정 (기존 내역 초기화 및 동기화)"

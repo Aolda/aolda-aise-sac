@@ -76,5 +76,7 @@
       - "autofs"
       - "sendmail"
 
+  check_mode: "{{ not (apply_policy | bool) }}"
+
   roles:
     - role: ../roles/os-security

@@ -2,6 +2,9 @@
 - name: Apply KISA Keystone security controls
   hosts: keystone
   become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
   roles:
     - role: keystone-security
       tags: [keystone, identity, openstack]
@@ -9,6 +12,9 @@
 - name: Apply KISA Nova security controls
   hosts: nova
   become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
   roles:
     - role: nova-security
       tags: [nova, compute, openstack]
@@ -16,6 +22,9 @@
 - name: Apply KISA Cinder security controls
   hosts: cinder
   become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
   roles:
     - role: cinder-security
       tags: [cinder, block-storage, openstack]
@@ -23,6 +32,9 @@
 - name: Apply KISA Glance security controls
   hosts: glance
   become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
   roles:
     - role: glance-security
       tags: [glance, image-storage, openstack]
@@ -30,6 +42,9 @@
 - name: Apply KISA Neutron security controls
   hosts: neutron
   become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
   roles:
     - role: neutron-security
       tags: [neutron, networking, openstack]

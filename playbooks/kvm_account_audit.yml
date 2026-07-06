@@ -6,6 +6,9 @@
   hosts: kvm_hosts
   gather_facts: yes
   become: yes
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
   
   roles:
     - kvm-account-audit

@@ -1,0 +1,10 @@
+---
+- name: Validate security report without an operating server
+  hosts: local_report_test:docker_report_test
+  gather_facts: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
+  roles:
+    - role: report-test-baseline
+    - role: report-test-application

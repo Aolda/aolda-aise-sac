@@ -1,0 +1,19 @@
+---
+- name: 로컬호스트 실제 조치 모드 사용 금지
+  ansible.builtin.assert:
+    that:
+      - not (apply_policy | bool) or inventory_hostname in groups.get('docker_report_test', [])
+    fail_msg: >-
+      apply_policy=true 테스트는 격리된 docker_report_test 그룹에서만 허용됩니다.
+      localhost 또는 운영 inventory에서는 실행하지 마세요.
+  check_mode: false
+
+- name: "REPORT-TEST-01. 변경 없이 완료되는 기준 점검"
+  ansible.builtin.debug:
+    msg: "현재 기준을 만족하는 정책을 모의합니다."
+
+- name: "REPORT-TEST-02. 조치 필요 상태 점검"
+  ansible.builtin.copy:
+    dest: /tmp/aise-report-test-check-mode-marker
+    content: "AISE check mode marker\n"
+    mode: "0600"

@@ -3,6 +3,9 @@
   hosts: kvm_hosts
   gather_facts: true
   become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
   roles:
     - role: kvm-account-audit
 
@@ -10,6 +13,9 @@
   hosts: ceph_hosts
   gather_facts: true
   become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
   roles:
     - role: ceph-security-baseline
 
@@ -17,5 +23,8 @@
   hosts: storage_hosts
   gather_facts: true
   become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
   roles:
     - role: storage-security-baseline

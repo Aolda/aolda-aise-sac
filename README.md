@@ -35,6 +35,7 @@ AISE는 Docker, DB, Kubernetes, OpenStack 등 인프라 구성 요소의 보안 
 ### b. 주요 기능
 
 - 보안 기준에 맞춘 설정 적용 자동화
+- 기본 무변경 점검과 실행 결과 Markdown 보고서 자동 생성
 - 구성 요소별 사전 점검 및 검증 task 제공
 - Molecule 기반 syntax/smoke 테스트 시나리오 제공
 - 예시 inventory와 실행 playbook 제공
@@ -154,12 +155,29 @@ ANSIBLE_HOME=.ansible ansible-galaxy collection install -r requirements.yml
 
 `precheck`, `backup`, `validate`, `handler`, Kubernetes 노드 역할 감지, Kubernetes YAML 검증, Docker warn/fail 모드는 원본 50개를 안전하게 실행하기 위한 운영 안정성 보조 로직으로 유지합니다. Horizon, Cinder volume encryption, OpenStack 설정 파일 권한 hardening, Docker daemon 보안 옵션 병합, Neutron auth_strategy 추가 보강은 원본 50개 밖의 보안 목적 항목이므로 기본 실행에서 제외합니다.
 
-### b. Check Mode 실행
+### b. 기본 보고서 모드 실행
+
+```bash
+ANSIBLE_HOME=.ansible ansible-playbook playbooks/security-policy-2026.yml \
+  -i inventory/security-policy-2026.example.ini
+```
+
+`apply_policy` 기본값은 `false`이며, playbook이 자동으로 check mode로 실행됩니다.
+결과는 role마다 `reports/REPORT.ROLE.YYYYMMDD_HHMMSS.md`에 생성됩니다. 실제 조치를 적용하려면
+반드시 `-e apply_policy=true`를 지정합니다.
 
 ```bash
 ANSIBLE_HOME=.ansible ansible-playbook playbooks/security-policy-2026.yml \
   -i inventory/security-policy-2026.example.ini \
-  --check
+  -e apply_policy=true
+```
+
+자세한 사용법은 `docs/security-reporting.md`를 참고합니다.
+
+운영 서버 없이 보고서 기능만 검증하려면 localhost smoke test를 실행합니다.
+
+```bash
+./tests/smoke/test_report_without_server.sh localhost
 ```
 
 특정 role만 확인하려면 tag를 사용합니다.

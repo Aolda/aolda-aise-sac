@@ -3,9 +3,19 @@
 ## 1. 보고서 개요
 
 ### 가. 보안조치 기본정보
-* **보고서 생성 일시:** {{ now(fmt='%Y-%m-%d %H:%M:%S') }}
-* **대상 노드 (Host):** {{ inventory_hostname }}
-* **자동 조치(Apply-Policy) 모드:** {{ apply_policy | bool | lower }}
+
+| 항목 | 내용 |
+| :--- | :--- |
+| 실행 시작시간 | {{ ansible_date_time.date }} {{ ansible_date_time.time }} {{ ansible_date_time.tz }} |
+| 실행 종료시간 | {{ ansible_date_time.date }} {{ ansible_date_time.time }} {{ ansible_date_time.tz }} |
+| 조치 자동적용 여부 | {{ apply_policy | default('false') }} |
+| 실행 대상 | {{ inventory_hostname }} |
+| 인벤토리 | {{ inventory_file | default('알 수 없음') }} |
+| 실행 사용자 | {{ ansible_user_id }} |
+| 대상 OS | {{ inventory_hostname }}: {{ ansible_distribution }} {{ ansible_distribution_version }} |
+| Ansible playbook | {{ ansible_play_name | default('알 수 없음') }} |
+| 실행 role 목록 | {{ ansible_role_names | join(', ') }} |
+| 보고서 파일명 | REPORT.{{ report_timestamp }}.md |
 
 ### 나. 보안조치 통계
 

@@ -1,9 +1,4 @@
 ---
-- name: "보고서 출력용 공통 변수 고정"
-  ansible.builtin.set_fact:
-    report_timestamp: "{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}{{ ansible_date_time.second }}"
-    report_filename: "REPORT.{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}{{ ansible_date_time.second }}.md"
-
 - name: "OS 보안 설정 조치"
   block:
     - name: "[OS 파트] 1. 계정 및 인증 통제 영역"
@@ -20,6 +15,3 @@
 
   # apply_policy가 false면 check_mode가 true가 되어 시스템을 변경하지 않고 점검만 수행합니다.
   check_mode: "{{ not (apply_policy | bool) }}"
-
-- name: "[OS 파트] 5. 보안 조치 결과 보고서 생성 영역"
-  ansible.builtin.include_tasks: report.yml

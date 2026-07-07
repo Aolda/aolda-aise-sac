@@ -8,7 +8,7 @@ KVM 하이퍼바이저 호스트의 미사용 계정 점검, 세션 타임아웃
 
 | 파일 | 구현 내용 |
 | --- | --- |
-| `tasks/accounts.yml` | KVM 관련 그룹의 미사용 계정과 명시적 퇴직 계정을 조회하고, Markdown 감사 보고서와 수동 잠금 스크립트를 생성합니다. `enforce` 모드와 `kvm_account_action: lock` 설정 시 제한 기준을 넘은 계정을 잠금 처리합니다. |
+| `tasks/accounts.yml` | KVM 관련 그룹의 미사용 계정과 명시적 퇴직 계정을 조회하고, 필요 시 수동 잠금 스크립트를 생성합니다. `enforce` 모드와 `kvm_account_action: lock` 설정 시 제한 기준을 넘은 계정을 잠금 처리합니다. 실행 결과 보고서는 공통 `security_report` callback이 생성합니다. |
 | `tasks/session_timeout.yml` | SSH `ClientAliveInterval`, `ClientAliveCountMax` 설정과 shell `TMOUT` 설정을 배포합니다. |
 | `tasks/ip_restrict.yml` | UFW 기반으로 관리망/비상 접근 CIDR의 서비스 포트를 허용하고, 선택적으로 기본 inbound 정책을 적용합니다. |
 | `tasks/default_bridge.yml` | libvirt 기본 네트워크의 autostart 해제, active network 중지, network 정의 삭제를 선택적으로 수행합니다. |
@@ -28,7 +28,7 @@ KVM 하이퍼바이저 호스트의 미사용 계정 점검, 세션 타임아웃
 
 - `kvm_account_target_groups`에 지정된 그룹의 구성원을 조회하고, `lastlog` 기준으로 미사용 기간을 계산합니다.
 - `kvm_retired_users`에 지정된 계정은 명시적 퇴직 계정으로 감사 대상에 포함됩니다.
-- 감사 결과가 `kvm_account_report_dir` 아래 Markdown 파일로 생성됩니다.
+- 감사 결과는 다른 role과 동일하게 공통 `security_report` callback을 통해 `reports/REPORT.kvm-account-audit.<timestamp>.md` 형식의 Markdown 파일로 생성됩니다.
 - `kvm_account_manual_script_enabled`가 true이면 미사용 계정 수동 잠금 스크립트가 `kvm_account_manual_script_dir`에 생성됩니다.
 - `security_action_mode: enforce`와 `kvm_account_action: lock`을 함께 설정하면 제한 기준 이상 미사용 계정이 잠금 처리되고 shell이 `kvm_nologin_shell`로 변경됩니다.
 - `security_action_mode: delete`와 `kvm_account_action: delete`를 함께 설정하면 `kvm_retired_users` 중 허용/제외 대상이 아닌 계정이 삭제됩니다.
@@ -51,8 +51,6 @@ KVM 하이퍼바이저 호스트의 미사용 계정 점검, 세션 타임아웃
 | `kvm_remove_home` | `false` | 계정 삭제 시 home 디렉터리도 함께 삭제할지 여부입니다. |
 | `kvm_uid_min` | `1000` | 일반 사용자 계정으로 간주할 최소 UID입니다. `root`는 예외 처리됩니다. |
 | `kvm_account_excluded_users` | `ansible`, `kolla` | 감사/조치 대상에서 제외할 계정 목록입니다. |
-| `kvm_account_report_dir` | `/tmp/kvm_audit_reports` | 계정 감사 보고서 저장 디렉터리입니다. |
-| `kvm_account_report_mode` | `0644` | 생성되는 감사 보고서 파일 권한입니다. |
 | `kvm_account_inactivity_threshold_days` | `30` | 미사용 계정으로 보고서에 포함할 기준 일수입니다. |
 | `kvm_account_restriction_threshold_days` | `60` | 자동 잠금 후보로 산정할 미사용 기준 일수입니다. |
 | `kvm_account_target_groups` | `kvm`, `qemu`, `libvirt` | 계정 감사를 수행할 KVM 관련 그룹 목록입니다. |

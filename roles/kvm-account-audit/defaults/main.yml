@@ -19,8 +19,6 @@ kvm_uid_min: 1000
 kvm_account_excluded_users:
   - ansible
   - kolla
-kvm_account_report_dir: /tmp/kvm_audit_reports
-kvm_account_report_mode: "0644"
 kvm_account_inactivity_threshold_days: 30
 kvm_account_restriction_threshold_days: 60
 kvm_account_target_groups:

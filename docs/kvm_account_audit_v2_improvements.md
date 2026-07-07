@@ -78,33 +78,12 @@
 - Step 6 (이전 Step 5): 보고서 생성
 - Step 7-9 (이전 Step 6-8): 스크립트 처리
 
-### 2️⃣ `roles/kvm-account-audit/templates/account_audit_report.j2`
+### 2️⃣ 공통 `security_report` callback 보고서
 
 **변경 사항**:
-- 보고서 헤더 업데이트 (자동 잠금 통계 추가)
-- 계정 상태 테이블에 "잠금됨 (자동 처리)" 표시
-- 잠금된 계정 상세 섹션 추가
-- 복구 절차 명시
-
-**주요 내용**:
-```markdown
-## 📊 감시 결과 요약
-
-- 총 미사용 계정 수: N개
-- **자동 잠금 처리 계정 (60일+): M개** ⭐ NEW
-- 모니터링 중인 계정 (30-60일): K개
-
-## 🔐 조치 결과
-
-### ✅ 자동 잠금 처리 완료 (M개)
-
-다음 계정들이 **자동으로 잠금 처리**되었습니다:
-- kvmadmin02: 🔒 계정 잠금 (login 불가)
-- kvmuser01: 🔒 계정 잠금 (login 불가)
-
-**자동 복구 방법**:
-usermod -U <username>
-```
+- KVM 전용 Markdown 템플릿 대신 다른 role과 동일한 callback 보고서를 사용합니다.
+- 보고서 파일명은 `reports/REPORT.kvm-account-audit.<timestamp>.md` 형식입니다.
+- 자동 잠금/삭제 task의 조치 대상 여부와 적용 결과가 공통 정책 세부현황 표에 기록됩니다.
 
 ### 3️⃣ `roles/kvm-account-audit/README.md`
 
@@ -278,10 +257,10 @@ ansible-playbook playbooks/kvm_account_audit.yml -i inventory/hosts.yml
 ### 결과 확인
 ```bash
 # 보고서 확인
-cat /tmp/kvm_audit_reports/kvm_account_audit_*.md
+cat reports/REPORT.kvm-account-audit.*.md
 
-# 자동 잠금 처리 결과 확인
-grep "자동 잠금" /tmp/kvm_audit_reports/kvm_account_audit_*.md
+# 자동 잠금 처리 task 결과 확인
+grep "KVM 계정 잠금 처리" reports/REPORT.kvm-account-audit.*.md
 ```
 
 ### 복구 필요시
@@ -307,5 +286,5 @@ sudo passwd -u kvmuser01
 ---
 
 **구현 완료: 2026-02-10**  
-**변경 대상**: tasks/main.yml, account_audit_report.j2, README.md  
+**변경 대상**: tasks/main.yml, README.md, security_report callback 보고서 흐름
 **상태**: ✅ 프로덕션 준비 완료

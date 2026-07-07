@@ -1,22 +1,9 @@
 ---
 - name: "KVM 계정 정책 변수 호환성 설정"
   ansible.builtin.set_fact:
-    kvm_accounts_effective_report_dir: "{{ kvm_account_audit.report_dir | default(kvm_account_report_dir) }}"
     kvm_accounts_effective_target_groups: "{{ kvm_account_audit.target_groups | default(kvm_account_target_groups) }}"
     kvm_accounts_effective_inactivity_days: "{{ kvm_account_audit.inactivity_threshold_days | default(kvm_account_inactivity_threshold_days) }}"
     kvm_accounts_effective_restriction_days: "{{ kvm_account_audit.restriction_threshold_days | default(kvm_account_restriction_threshold_days) }}"
-  tags:
-    - kvm_accounts
-
-- name: "KVM 계정 보고서 디렉터리 생성"
-  ansible.builtin.file:
-    path: "{{ kvm_accounts_effective_report_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-  become: true
-  when: enable_kvm_account_hardening | bool
   tags:
     - kvm_accounts
 
@@ -169,19 +156,6 @@
   tags:
     - kvm_accounts
 
-- name: "KVM 계정 감사 보고서 생성"
-  ansible.builtin.template:
-    src: account_audit_report.j2
-    dest: "{{ kvm_accounts_effective_report_dir }}/kvm_account_audit_{{ ansible_date_time.iso8601_basic_short }}.md"
-    owner: root
-    group: root
-    mode: "{{ kvm_account_report_mode }}"
-  become: true
-  register: audit_report
-  when: enable_kvm_account_hardening | bool
-  tags:
-    - kvm_accounts
-
 - name: "KVM 계정 수동 조치 스크립트 배포"
   ansible.builtin.template:
     src: apply_account_restrictions.j2
@@ -200,7 +174,7 @@
 - name: "KVM 계정 정책 완료"
   ansible.builtin.debug:
     msg:
-      - "report={{ audit_report.dest | default('not-created') }}"
+      - "report=security_report_callback"
       - "locked={{ locked_accounts | default([]) | join(',') }}"
       - "deleted={{ deleted_accounts | default([]) | join(',') }}"
   when: enable_kvm_account_hardening | bool

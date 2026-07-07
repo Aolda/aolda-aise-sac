@@ -11,7 +11,6 @@
       - /ip service print detail without-paging
   register: network_hardening_service_audit
   changed_when: false
-  when: network_security_mode == "audit"
 
 - name: Audit RouterOS user status
   community.routeros.command:
@@ -19,7 +18,6 @@
       - /user print detail without-paging
   register: network_hardening_user_audit
   changed_when: false
-  when: network_security_mode == "audit"
 
 - name: Audit RouterOS snmp status
   community.routeros.command:
@@ -27,7 +25,6 @@
       - /snmp print detail without-paging
   register: network_hardening_snmp_audit
   changed_when: false
-  when: network_security_mode == "audit"
 
 - name: Audit RouterOS interface status
   community.routeros.command:
@@ -35,7 +32,6 @@
       - /interface print detail without-paging
   register: network_hardening_interface_audit
   changed_when: false
-  when: network_security_mode == "audit"
 
 - name: Show RouterOS audit results
   ansible.builtin.debug:
@@ -51,7 +47,9 @@
     that:
       - network_hardening_allowed_management_cidrs | length > 0
     fail_msg: "Set network_hardening_allowed_management_cidrs before running harden mode."
-  when: network_security_mode == "harden"
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
 
 - name: Restrict ssh management access
   community.routeros.command:
@@ -59,7 +57,10 @@
       - >-
         /ip service set [find name={{ network_hardening_ssh_service_name }}]
         address={{ network_hardening_allowed_management_cidrs | join(",") }}
-  when: network_security_mode == "harden"
+  register: network_hardening_ssh_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
 
 - name: Restrict winbox management access
   community.routeros.command:
@@ -67,14 +68,20 @@
       - >-
         /ip service set [find name={{ network_hardening_winbox_service_name }}]
         address={{ network_hardening_allowed_management_cidrs | join(",") }}
-  when: network_security_mode == "harden"
+  register: network_hardening_winbox_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
 
 - name: Disable non-required management services
   community.routeros.command:
     commands:
       - /ip service set [find name={{ item }}] disabled=yes
   loop: "{{ network_hardening_disabled_services }}"
-  when: network_security_mode == "harden"
+  register: network_hardening_services_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
 
 - name: Apply RouterOS CLI session timeout to selected users
   community.routeros.command:
@@ -84,7 +91,9 @@
         inactivity-timeout={{ network_hardening_session_timeout }}
         inactivity-policy={{ network_hardening_session_inactivity_policy }}
   loop: "{{ network_hardening_session_timeout_users }}"
+  register: network_hardening_session_result
   when:
+    - apply_policy | bool
     - network_security_mode == "harden"
     - network_hardening_session_timeout_users | length > 0
 
@@ -92,7 +101,9 @@
   community.routeros.command:
     commands:
       - /snmp set enabled=no
+  register: network_hardening_snmp_result
   when:
+    - apply_policy | bool
     - network_security_mode == "harden"
     - network_hardening_disable_snmp
 
@@ -101,7 +112,9 @@
     commands:
       - /interface disable [find name="{{ item }}"]
   loop: "{{ network_hardening_unused_interfaces }}"
+  register: network_hardening_interfaces_result
   when:
+    - apply_policy | bool
     - network_security_mode == "harden"
     - network_hardening_unused_port_shutdown_enabled | bool
     - network_hardening_unused_interfaces | length > 0
@@ -110,7 +123,9 @@
   community.routeros.command:
     commands:
       - /ip settings set rp-filter={{ network_hardening_rp_filter_mode }}
+  register: network_hardening_rp_filter_result
   when:
+    - apply_policy | bool
     - network_security_mode == "harden"
     - network_hardening_rp_filter_enabled
 
@@ -119,7 +134,9 @@
     commands:
       - "{{ item }}"
   loop: "{{ network_hardening_dos_rules }}"
+  register: network_hardening_dos_result
   when:
+    - apply_policy | bool
     - network_security_mode == "harden"
     - network_hardening_dos_protection_enabled
     - network_hardening_dos_rules | length > 0
@@ -128,7 +145,9 @@
   community.routeros.command:
     commands:
       - /ip firewall filter add chain=input action=log log=yes log-prefix="AISE_DROP"
+  register: network_hardening_drop_logging_result
   when:
+    - apply_policy | bool
     - network_security_mode == "harden"
     - network_hardening_drop_logging_enabled
 
@@ -136,7 +155,13 @@
   community.routeros.command:
     commands:
       - /ip firewall filter add chain=input action=drop comment="default_drop_scaffold"
+  register: network_hardening_default_drop_result
   when:
+    - apply_policy | bool
     - network_security_mode == "harden"
     - network_hardening_default_drop_enabled | bool
     - network_hardening_default_drop_confirmed | bool
+
+- name: Generate network_hardening security report
+  ansible.builtin.include_tasks: report.yml
+  when: network_hardening_report_enabled | bool

@@ -1,0 +1,16 @@
+---
+- name: Ensure network_hardening report directory exists on localhost
+  ansible.builtin.file:
+    path: "{{ network_hardening_report_dir }}"
+    state: directory
+    mode: "0750"
+  delegate_to: localhost
+  check_mode: no
+
+- name: Generate network_hardening security report
+  ansible.builtin.template:
+    src: network_hardening_report.md.j2
+    dest: "{{ network_hardening_report_dir }}/REPORT.{{ now(utc=True).strftime('%Y%m%d_%H%M%S') }}.md"
+    mode: "0640"
+  delegate_to: localhost
+  check_mode: no

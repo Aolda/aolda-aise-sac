@@ -1,5 +1,9 @@
 ---
-network_security_mode: audit
+apply_policy: false
+network_security_mode: "{{ 'harden' if apply_policy | bool else 'audit' }}"
+
+os_firewall_report_enabled: true
+os_firewall_report_dir: "/tmp/aise_reports"
 
 os_firewall_icmp_echo_request_limit: 5/second
 os_firewall_icmp_echo_request_burst: 10

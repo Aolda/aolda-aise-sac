@@ -1,0 +1,14 @@
+---
+- name: Ensure os_firewall report directory exists
+  ansible.builtin.file:
+    path: "{{ os_firewall_report_dir }}"
+    state: directory
+    mode: "0750"
+  check_mode: no
+
+- name: Generate os_firewall security report
+  ansible.builtin.template:
+    src: firewall_report.md.j2
+    dest: "{{ os_firewall_report_dir }}/REPORT.{{ now(utc=True).strftime('%Y%m%d_%H%M%S') }}.md"
+    mode: "0640"
+  check_mode: no

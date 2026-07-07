@@ -1,0 +1,125 @@
+{# ── Variable setup ── #}
+{% set nh_p1_active  = network_hardening_allowed_management_cidrs | length > 0 %}
+{% set nh_p2_active  = network_hardening_allowed_management_cidrs | length > 0 %}
+{% set nh_p3_active  = true %}
+{% set nh_p4_active  = network_hardening_session_timeout_users | length > 0 %}
+{% set nh_p5_active  = network_hardening_disable_snmp | bool %}
+{% set nh_p6_active  = network_hardening_unused_port_shutdown_enabled | bool and network_hardening_unused_interfaces | length > 0 %}
+{% set nh_p7_active  = network_hardening_rp_filter_enabled | bool %}
+{% set nh_p8_active  = network_hardening_dos_protection_enabled | bool and network_hardening_dos_rules | length > 0 %}
+{% set nh_p9_active  = network_hardening_drop_logging_enabled | bool %}
+{% set nh_p10_active = network_hardening_default_drop_enabled | bool and network_hardening_default_drop_confirmed | bool %}
+
+{% set total = 10 %}
+
+# [Aolda 인프라 통합 보안조치 결과 보고서] - Network
+
+## 1. 보고서 개요
+
+### 가. 보안조치 기본정보
+
+| 항목 | 내용 |
+|-|-|
+| 실행 시작시간 | {{ now(utc=True).strftime('%Y-%m-%d %H:%M:%S UTC') }} |
+| 실행 종료시간 | {{ now(utc=True).strftime('%Y-%m-%d %H:%M:%S UTC') }} |
+| 조치 자동적용 여부 | {{ apply_policy | bool | lower }} |
+| 실행 대상 | {{ inventory_hostname }} |
+| 인벤토리 | {{ inventory_file | default('N/A') }} |
+| 실행 사용자 | {{ ansible_user | default('N/A') }} |
+| 대상 OS | RouterOS |
+| Ansible playbook | {{ ansible_playbook | default('N/A') }} |
+| 실행 role 목록 | network_hardening |
+| 보고서 파일명 | REPORT.{{ now(utc=True).strftime('%Y%m%d_%H%M%S') }}.md |
+
+### 나. 보안조치 통계
+
+{% if apply_policy | bool %}
+{% set nh_p1_c  = network_hardening_ssh_result.changed | default(false) %}
+{% set nh_p1_f  = network_hardening_ssh_result.failed  | default(false) %}
+{% set nh_p2_c  = network_hardening_winbox_result.changed | default(false) %}
+{% set nh_p2_f  = network_hardening_winbox_result.failed  | default(false) %}
+{% set nh_p3_c  = (network_hardening_services_result.results  | default([]) | selectattr('changed', 'equalto', true) | list | length) > 0 %}
+{% set nh_p3_f  = (network_hardening_services_result.results  | default([]) | selectattr('failed',  'equalto', true) | list | length) > 0 %}
+{% set nh_p4_c  = (network_hardening_session_result.results   | default([]) | selectattr('changed', 'equalto', true) | list | length) > 0 %}
+{% set nh_p4_f  = (network_hardening_session_result.results   | default([]) | selectattr('failed',  'equalto', true) | list | length) > 0 %}
+{% set nh_p5_c  = network_hardening_snmp_result.changed | default(false) %}
+{% set nh_p5_f  = network_hardening_snmp_result.failed  | default(false) %}
+{% set nh_p6_c  = (network_hardening_interfaces_result.results | default([]) | selectattr('changed', 'equalto', true) | list | length) > 0 %}
+{% set nh_p6_f  = (network_hardening_interfaces_result.results | default([]) | selectattr('failed',  'equalto', true) | list | length) > 0 %}
+{% set nh_p7_c  = network_hardening_rp_filter_result.changed | default(false) %}
+{% set nh_p7_f  = network_hardening_rp_filter_result.failed  | default(false) %}
+{% set nh_p8_c  = (network_hardening_dos_result.results       | default([]) | selectattr('changed', 'equalto', true) | list | length) > 0 %}
+{% set nh_p8_f  = (network_hardening_dos_result.results       | default([]) | selectattr('failed',  'equalto', true) | list | length) > 0 %}
+{% set nh_p9_c  = network_hardening_drop_logging_result.changed | default(false) %}
+{% set nh_p9_f  = network_hardening_drop_logging_result.failed  | default(false) %}
+{% set nh_p10_c = network_hardening_default_drop_result.changed | default(false) %}
+{% set nh_p10_f = network_hardening_default_drop_result.failed  | default(false) %}
+
+{% set changed_count = [nh_p1_c|int, nh_p2_c|int, nh_p3_c|int, nh_p4_c|int, nh_p5_c|int, nh_p6_c|int, nh_p7_c|int, nh_p8_c|int, nh_p9_c|int, nh_p10_c|int] | sum %}
+{% set failed_count  = [nh_p1_f|int, nh_p2_f|int, nh_p3_f|int, nh_p4_f|int, nh_p5_f|int, nh_p6_f|int, nh_p7_f|int, nh_p8_f|int, nh_p9_f|int, nh_p10_f|int] | sum %}
+{% set already_ok    = total - changed_count %}
+
+|총 검사 정책 수|조치 완료 정책 수|조치 필요 정책 수|조치 성공 정책 수|조치 실패 정책 수|
+|-|-|-|-|-|
+|{{ total }}|{{ already_ok }}|{{ changed_count }}|{{ changed_count - failed_count }}|{{ failed_count }}|
+
+{% else %}
+{% set action_needed = [nh_p1_active|int, nh_p2_active|int, nh_p3_active|int, nh_p4_active|int, nh_p5_active|int, nh_p6_active|int, nh_p7_active|int, nh_p8_active|int, nh_p9_active|int, nh_p10_active|int] | sum %}
+{% set already_ok = total - action_needed %}
+
+|총 검사 정책 수|조치 완료 정책 수|조치 필요 정책 수|
+|-|-|-|
+|{{ total }}|{{ already_ok }}|{{ action_needed }}|
+
+{% endif %}
+
+---
+
+## 2. 정책 별 세부현황
+
+### 가. network_hardening
+
+| 조치항목 이름 | 조치 대상여부 | 정책 적용결과 |
+|-|-|-|
+| SSH 접근 제한 | {{ nh_p1_active | lower }} | {% if not apply_policy | bool or not nh_p1_active %}false{% elif nh_p1_c and not nh_p1_f %}true{% else %}false{% endif %} |
+| WinBox 접근 제한 | {{ nh_p2_active | lower }} | {% if not apply_policy | bool or not nh_p2_active %}false{% elif nh_p2_c and not nh_p2_f %}true{% else %}false{% endif %} |
+| 서비스 비활성화 | {{ nh_p3_active | lower }} | {% if not apply_policy | bool %}false{% elif nh_p3_c and not nh_p3_f %}true{% else %}false{% endif %} |
+| 세션 타임아웃 | {{ nh_p4_active | lower }} | {% if not apply_policy | bool or not nh_p4_active %}false{% elif nh_p4_c and not nh_p4_f %}true{% else %}false{% endif %} |
+| SNMP 비활성화 | {{ nh_p5_active | lower }} | {% if not apply_policy | bool or not nh_p5_active %}false{% elif nh_p5_c and not nh_p5_f %}true{% else %}false{% endif %} |
+| 미사용 인터페이스 차단 | {{ nh_p6_active | lower }} | {% if not apply_policy | bool or not nh_p6_active %}false{% elif nh_p6_c and not nh_p6_f %}true{% else %}false{% endif %} |
+| rp-filter | {{ nh_p7_active | lower }} | {% if not apply_policy | bool or not nh_p7_active %}false{% elif nh_p7_c and not nh_p7_f %}true{% else %}false{% endif %} |
+| DoS 보호 | {{ nh_p8_active | lower }} | {% if not apply_policy | bool or not nh_p8_active %}false{% elif nh_p8_c and not nh_p8_f %}true{% else %}false{% endif %} |
+| Drop 로깅 | {{ nh_p9_active | lower }} | {% if not apply_policy | bool or not nh_p9_active %}false{% elif nh_p9_c and not nh_p9_f %}true{% else %}false{% endif %} |
+| Default Drop | {{ nh_p10_active | lower }} | {% if not apply_policy | bool or not nh_p10_active %}false{% elif nh_p10_c and not nh_p10_f %}true{% else %}false{% endif %} |
+
+---
+
+## RouterOS Audit 결과
+
+### 서비스 현황
+
+```
+{{ network_hardening_service_audit.stdout | default('(수집 불가)') }}
+```
+
+### 사용자 현황
+
+```
+{{ network_hardening_user_audit.stdout | default('(수집 불가)') }}
+```
+
+### SNMP 현황
+
+```
+{{ network_hardening_snmp_audit.stdout | default('(수집 불가)') }}
+```
+
+### 인터페이스 현황
+
+```
+{{ network_hardening_interface_audit.stdout | default('(수집 불가)') }}
+```
+
+---
+
+*Generated by aolda-aise-sac network_hardening role*

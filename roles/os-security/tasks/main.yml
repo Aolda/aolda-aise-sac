@@ -13,8 +13,5 @@
     - name: "[OS 파트] 4. 시스템 유지보수 및 인프라 운영 영역"
       ansible.builtin.include_tasks: system.yml
 
-  # apply_policy가 false면 check_mode가 true가 되어 시스템을 변경하지 않고 점검만 수행합
+  # apply_policy가 false면 check_mode가 true가 되어 시스템을 변경하지 않고 점검만 수행합니다.
   check_mode: "{{ not (apply_policy | bool) }}"
-
-- name: "[OS 파트] 5. 보안 조치 결과 보고서 생성 영역"
-  ansible.builtin.include_tasks: report.yml

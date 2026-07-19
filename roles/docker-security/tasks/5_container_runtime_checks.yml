@@ -46,6 +46,32 @@
   loop: "{{ docker_all_containers.stdout_lines | default([]) }}"
   when: docker_cli_check.rc == 0
 
+- name: "5-6-1. 컨테이너 HostConfig 점검 입력 정규화"
+  ansible.builtin.set_fact:
+    docker_container_runtime_checks: "{{ (docker_container_runtime_checks | default([])) + [docker_container_runtime_check] }}"
+  vars:
+    docker_host_config: "{{ item.stdout | default('{}') | from_json }}"
+    docker_security_opt_raw: "{{ docker_host_config.SecurityOpt | default([], true) }}"
+    docker_security_opt_normalized: >-
+      {{
+        docker_security_opt_raw
+        if docker_security_opt_raw is sequence and docker_security_opt_raw is not string
+        else (
+          [docker_security_opt_raw | string]
+          if docker_security_opt_raw is defined and docker_security_opt_raw is not none and (docker_security_opt_raw | string | length) > 0
+          else []
+        )
+      }}
+    docker_container_runtime_check:
+      container_id: "{{ item.item }}"
+      host_config: "{{ docker_host_config }}"
+      security_opt: "{{ docker_security_opt_normalized }}"
+      missing_security_opt: "{{ docker_required_container_security_opts | difference(docker_security_opt_normalized) }}"
+  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  when:
+    - docker_cli_check.rc == 0
+    - item.rc | default(1) == 0
+
 - name: "5-7. 컨테이너 포트 매핑 조회"
   ansible.builtin.command: docker ps --all --format '{{ "{{" }}.ID{{ "}}" }} Ports={{ "{{" }}.Ports{{ "}}" }}'
   register: docker_container_ports
@@ -64,44 +90,44 @@
 - name: "DOCKER-03. 호스트 user namespace 공유 점검"
   ansible.builtin.assert:
     that:
-      - (item.stdout | from_json).UsernsMode != "host"
-    fail_msg: "Container {{ item.item }} shares the host user namespace."
-    success_msg: "Container {{ item.item }} does not share the host user namespace."
+      - item.host_config.UsernsMode | default('') != "host"
+    fail_msg: "Container {{ item.container_id }} shares the host user namespace."
+    success_msg: "Container {{ item.container_id }} does not share the host user namespace."
     quiet: true
-  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  loop: "{{ docker_container_runtime_checks | default([]) }}"
   when:
     - docker_cli_check.rc == 0
     - docker_runtime_check_fail | bool
 
 - name: "DOCKER-03. 호스트 user namespace 공유 경고 출력"
   ansible.builtin.debug:
-    msg: "Container {{ item.item }} shares the host user namespace."
-  loop: "{{ docker_container_host_configs.results | default([]) }}"
+    msg: "Container {{ item.container_id }} shares the host user namespace."
+  loop: "{{ docker_container_runtime_checks | default([]) }}"
   when:
     - docker_cli_check.rc == 0
     - not docker_runtime_check_fail | bool
-    - (item.stdout | from_json).UsernsMode == "host"
+    - item.host_config.UsernsMode | default('') == "host"
 
 - name: "DOCKER-05. 컨테이너 no-new-privileges 적용 점검"
   ansible.builtin.assert:
     that:
-      - docker_required_container_security_opts | difference((item.stdout | from_json).SecurityOpt | default([])) | length == 0
-    fail_msg: "Container {{ item.item }} does not include required SecurityOpt values."
-    success_msg: "Container {{ item.item }} includes required SecurityOpt values."
+      - item.missing_security_opt | length == 0
+    fail_msg: "Container {{ item.container_id }} does not include required SecurityOpt values."
+    success_msg: "Container {{ item.container_id }} includes required SecurityOpt values."
     quiet: true
-  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  loop: "{{ docker_container_runtime_checks | default([]) }}"
   when:
     - docker_cli_check.rc == 0
     - docker_runtime_check_fail | bool
 
 - name: "DOCKER-05. 컨테이너 no-new-privileges 경고 출력"
   ansible.builtin.debug:
-    msg: "Container {{ item.item }} does not include required SecurityOpt values: {{ docker_required_container_security_opts }}"
-  loop: "{{ docker_container_host_configs.results | default([]) }}"
+    msg: "Container {{ item.container_id }} does not include required SecurityOpt values: {{ docker_required_container_security_opts }}"
+  loop: "{{ docker_container_runtime_checks | default([]) }}"
   when:
     - docker_cli_check.rc == 0
     - not docker_runtime_check_fail | bool
-    - docker_required_container_security_opts | difference((item.stdout | from_json).SecurityOpt | default([])) | length > 0
+    - item.missing_security_opt | length > 0
 
 - name: "DOCKER-17. SELinux 보안 옵션 경고 출력"
   ansible.builtin.debug:
@@ -139,12 +165,12 @@
   when:
     - docker_cli_check.rc == 0
     - not docker_runtime_check_fail | bool
-    - item is regex_search(docker_privileged_port_regex | regex_replace('\\s+', ''))
+    - (item | default('') | string | regex_search(docker_privileged_port_regex | regex_replace('\\s+', ''))) is not none
 
 - name: "DOCKER-19. privileged port 매핑 점검"
   ansible.builtin.assert:
     that:
-      - item is not regex_search(docker_privileged_port_regex | regex_replace('\\s+', ''))
+      - (item | default('') | string | regex_search(docker_privileged_port_regex | regex_replace('\\s+', ''))) is none
     fail_msg: "Container exposes a privileged host port below {{ docker_privileged_port_threshold }}: {{ item }}"
     success_msg: "Container does not expose a privileged host port: {{ item }}"
     quiet: true
@@ -156,20 +182,20 @@
 - name: "DOCKER-20. PIDs cgroup 제한 점검"
   ansible.builtin.assert:
     that:
-      - (item.stdout | from_json).PidsLimit | int not in [0, -1]
-    fail_msg: "Container {{ item.item }} does not have an effective PIDs cgroup limit."
-    success_msg: "Container {{ item.item }} has an effective PIDs cgroup limit."
+      - item.host_config.PidsLimit | default(0) | int not in [0, -1]
+    fail_msg: "Container {{ item.container_id }} does not have an effective PIDs cgroup limit."
+    success_msg: "Container {{ item.container_id }} has an effective PIDs cgroup limit."
     quiet: true
-  loop: "{{ docker_container_host_configs.results | default([]) }}"
+  loop: "{{ docker_container_runtime_checks | default([]) }}"
   when:
     - docker_cli_check.rc == 0
     - docker_runtime_check_fail | bool
 
 - name: "DOCKER-20. PIDs cgroup 제한 경고 출력"
   ansible.builtin.debug:
-    msg: "Container {{ item.item }} does not have an effective PIDs cgroup limit."
-  loop: "{{ docker_container_host_configs.results | default([]) }}"
+    msg: "Container {{ item.container_id }} does not have an effective PIDs cgroup limit."
+  loop: "{{ docker_container_runtime_checks | default([]) }}"
   when:
     - docker_cli_check.rc == 0
     - not docker_runtime_check_fail | bool
-    - (item.stdout | from_json).PidsLimit | int in [0, -1]
+    - item.host_config.PidsLimit | default(0) | int in [0, -1]

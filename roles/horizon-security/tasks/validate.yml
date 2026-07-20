@@ -1,0 +1,42 @@
+---
+- name: "6-4-1. Horizon 설정파일 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ horizon_security_settings_file }}"
+  register: horizon_security_settings_validate_stat
+
+- name: "6-4-2. Horizon 설정파일 내용 조회"
+  ansible.builtin.slurp:
+    path: "{{ horizon_security_settings_file }}"
+  register: horizon_security_settings_validate_raw
+
+- name: "6-4-3. Horizon 설정파일 권한 및 기본 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - horizon_security_settings_validate_stat.stat.exists
+      - horizon_security_settings_validate_stat.stat.pw_name == horizon_security_config_owner
+      - horizon_security_settings_validate_stat.stat.gr_name == horizon_security_config_group
+      - horizon_security_settings_validate_stat.stat.mode == horizon_security_config_mode
+      - horizon_security_settings_content is search('AUTH_PASSWORD_VALIDATORS')
+    fail_msg: "Horizon 설정파일 권한 또는 password validator 설정이 기대값과 다릅니다."
+  vars:
+    horizon_security_settings_content: "{{ horizon_security_settings_validate_raw.content | b64decode }}"
+
+- name: "6-4-4. Horizon Secure Cookie 설정값 검증"
+  ansible.builtin.assert:
+    that:
+      - horizon_security_settings_content is search('(?m)^CSRF_COOKIE_SECURE\\s*=\\s*True\\s*$')
+      - horizon_security_settings_content is search('(?m)^SESSION_COOKIE_SECURE\\s*=\\s*True\\s*$')
+      - horizon_security_settings_content is search('(?m)^SESSION_COOKIE_HTTPONLY\\s*=\\s*True\\s*$')
+    fail_msg: "Horizon Secure Cookie 설정이 기대값과 다릅니다."
+  vars:
+    horizon_security_settings_content: "{{ horizon_security_settings_validate_raw.content | b64decode }}"
+  when: horizon_security_enable_secure_cookie | bool
+
+- name: "6-4-5. Horizon Dashboard HTTP/API 응답 검증"
+  ansible.builtin.uri:
+    url: "{{ horizon_security_https_endpoint }}"
+    method: GET
+    validate_certs: "{{ horizon_security_validate_certs }}"
+    ca_path: "{{ horizon_security_ca_cert | default(omit, true) }}"
+    status_code: "{{ horizon_security_tls_status_codes }}"
+  when: horizon_security_enable_secure_cookie | bool

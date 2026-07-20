@@ -1,0 +1,132 @@
+---
+- name: "6-1. Docker service/socket/config 경로 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  register: docker_security_validate_paths
+  loop:
+    - name: docker_config_dir
+      path: "{{ docker_config_dir }}"
+      owner: root
+      group: root
+      mode: "0755"
+      required: true
+    - name: docker_daemon_config
+      path: "{{ docker_daemon_config_path }}"
+      owner: root
+      group: root
+      mode: "{{ docker_daemon_config_mode }}"
+      required: false
+    - name: docker_service_unit
+      path: "{{ docker_service_unit_path }}"
+      owner: root
+      group: root
+      mode: "0644"
+      required: false
+    - name: docker_socket_unit
+      path: "{{ docker_socket_unit_path }}"
+      owner: root
+      group: root
+      mode: "0644"
+      required: false
+    - name: docker_socket
+      path: "{{ docker_socket_path }}"
+      owner: root
+      group: "{{ docker_group_name }}"
+      mode: "0660"
+      required: false
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "6-2. Docker 파일 및 디렉터리 권한 검증"
+  ansible.builtin.assert:
+    that:
+      - (not item.item.required | bool) or item.stat.exists
+      - (not item.stat.exists) or item.stat.pw_name == item.item.owner
+      - (not item.stat.exists) or item.stat.gr_name == item.item.group
+      - (not item.stat.exists) or item.stat.mode == item.item.mode
+    fail_msg: "{{ item.item.name }} ownership or mode is not secure: {{ item.stat | default({}) }}"
+    success_msg: "{{ item.item.name }} ownership and mode are secure."
+  loop: "{{ docker_security_validate_paths.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: "6-3. Docker daemon.json JSON 형식 검증"
+  ansible.builtin.slurp:
+    src: "{{ docker_daemon_config_path }}"
+  register: docker_validate_daemon_json_raw
+  when: docker_security_validate_paths.results[1].stat.exists
+
+- name: "6-4. Docker daemon.json 파싱 검증"
+  ansible.builtin.set_fact:
+    docker_validate_daemon_json: "{{ docker_validate_daemon_json_raw.content | b64decode | from_json }}"
+  when: docker_security_validate_paths.results[1].stat.exists
+
+- name: "6-5. auditd 패키지 설치 상태 수집"
+  ansible.builtin.package_facts:
+    manager: auto
+  when: docker_apply_audit_config | bool
+
+- name: "6-6. auditd 설치 여부 검증"
+  ansible.builtin.assert:
+    that:
+      - auditd_package_name in ansible_facts.packages
+    fail_msg: "{{ auditd_package_name }} package is not installed."
+    success_msg: "{{ auditd_package_name }} package is installed."
+  when: docker_apply_audit_config | bool
+
+- name: "6-7. Docker audit rules 파일 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ audit_rules_file }}"
+  register: docker_audit_rules_file_stat
+  when: docker_apply_audit_config | bool
+
+- name: "6-8. Docker audit rules 파일 권한 검증"
+  ansible.builtin.assert:
+    that:
+      - docker_audit_rules_file_stat.stat.exists
+      - docker_audit_rules_file_stat.stat.pw_name == "root"
+      - docker_audit_rules_file_stat.stat.gr_name == "root"
+      - docker_audit_rules_file_stat.stat.mode == docker_audit_rules_file_mode
+    fail_msg: "Docker audit rules file ownership or mode is not secure."
+    success_msg: "Docker audit rules file ownership and mode are secure."
+  when: docker_apply_audit_config | bool
+
+- name: "6-9. Docker audit rules 파일 내용 조회"
+  ansible.builtin.slurp:
+    src: "{{ audit_rules_file }}"
+  register: docker_audit_rules_file_raw
+  when: docker_apply_audit_config | bool
+
+- name: "6-10. Docker audit 대상 경로 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: docker_validate_audit_watch_paths
+  loop: "{{ docker_audit_watch_paths }}"
+  when: docker_apply_audit_config | bool
+
+- name: "6-11. Docker audit rule 적용 여부 검증"
+  ansible.builtin.assert:
+    that:
+      - docker_audit_rules_content is search('-w ' ~ (item.item | regex_escape) ~ ' -p wa -k docker')
+    fail_msg: "Docker audit rule for {{ item.item }} is missing."
+    success_msg: "Docker audit rule for {{ item.item }} is present."
+  loop: "{{ docker_validate_audit_watch_paths.results | default([]) }}"
+  vars:
+    docker_audit_rules_content: "{{ docker_audit_rules_file_raw.content | b64decode }}"
+  when:
+    - docker_apply_audit_config | bool
+    - item.stat.exists
+
+- name: "6-12. Docker Content Trust 설정 검증"
+  ansible.builtin.stat:
+    path: "{{ docker_content_trust_profile }}"
+  register: docker_content_trust_profile_stat
+  when: docker_enable_content_trust | bool
+
+- name: "6-13. Docker Content Trust profile 존재 검증"
+  ansible.builtin.assert:
+    that:
+      - docker_content_trust_profile_stat.stat.exists
+    fail_msg: "Docker Content Trust profile was not created."
+    success_msg: "Docker Content Trust profile exists."
+  when: docker_enable_content_trust | bool

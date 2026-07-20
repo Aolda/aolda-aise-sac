@@ -1,0 +1,30 @@
+---
+- name: "KVM security baseline"
+  hosts: kvm_hosts
+  gather_facts: true
+  become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
+  roles:
+    - role: kvm-account-audit
+
+- name: "Ceph security baseline"
+  hosts: ceph_hosts
+  gather_facts: true
+  become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
+  roles:
+    - role: ceph-security-baseline
+
+- name: "Storage security baseline"
+  hosts: storage_hosts
+  gather_facts: true
+  become: true
+  vars:
+    apply_policy: false
+  check_mode: "{{ not (apply_policy | bool) }}"
+  roles:
+    - role: storage-security-baseline

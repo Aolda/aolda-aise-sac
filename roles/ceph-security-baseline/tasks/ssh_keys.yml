@@ -1,0 +1,99 @@
+---
+- name: "Ceph SSH 사용자 홈 조회"
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item }}"
+  loop: "{{ ceph_ssh_users }}"
+  register: ceph_ssh_user_getent
+  failed_when: false
+  when: enable_ceph_ssh_key_check | bool
+  tags:
+    - ceph_ssh_keys
+
+- name: "Ceph SSH 사용자 홈 변수 생성"
+  ansible.builtin.set_fact:
+    ceph_ssh_user_homes: >-
+      {{
+        ceph_ssh_user_homes | default({}) | combine({
+          item.item: item.ansible_facts.getent_passwd[item.item][4]
+        })
+      }}
+  loop: "{{ ceph_ssh_user_getent.results | default([]) }}"
+  when:
+    - enable_ceph_ssh_key_check | bool
+    - item.ansible_facts.getent_passwd is defined
+    - item.item in item.ansible_facts.getent_passwd
+  tags:
+    - ceph_ssh_keys
+
+- name: "Ceph SSH key report"
+  ansible.builtin.debug:
+    msg:
+      - "users={{ ceph_ssh_users | join(',') }}"
+      - "homes={{ ceph_ssh_user_homes | default({}) }}"
+      - "manage_authorized_keys={{ ceph_manage_authorized_keys }}"
+      - "purge_unmanaged_keys={{ ceph_purge_unmanaged_keys }}"
+      - "mode={{ security_action_mode }}"
+  when: enable_ceph_ssh_key_check | bool
+  tags:
+    - ceph_ssh_keys
+
+- name: "Ceph SSH 디렉터리 권한 적용"
+  ansible.builtin.file:
+    path: "{{ item.value }}/.ssh"
+    owner: "{{ item.key }}"
+    group: "{{ item.key }}"
+    state: directory
+    mode: "{{ ceph_ssh_dir_mode }}"
+  loop: "{{ ceph_ssh_user_homes | default({}) | dict2items }}"
+  become: true
+  when:
+    - enable_ceph_ssh_key_check | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - ceph_ssh_keys
+
+- name: "Ceph SSH private key 권한 적용"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    shopt -s nullglob
+    changed=0
+    for key_file in "{{ item.value }}/.ssh"/id_*; do
+      case "$key_file" in
+        *.pub|*authorized_keys|*known_hosts) continue ;;
+      esac
+      current_mode="$(stat -c '%a' "$key_file")"
+      if [ "$current_mode" != "{{ ceph_private_key_mode }}" ]; then
+        chmod "{{ ceph_private_key_mode }}" "$key_file"
+        changed=1
+      fi
+    done
+    echo "$changed"
+  args:
+    executable: /bin/bash
+  loop: "{{ ceph_ssh_user_homes | default({}) | dict2items }}"
+  register: ceph_private_key_mode_result
+  changed_when: ceph_private_key_mode_result.stdout == '1'
+  become: true
+  when:
+    - enable_ceph_ssh_key_check | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - ceph_ssh_keys
+
+- name: "Ceph authorized_keys 관리"
+  ansible.builtin.copy:
+    content: "{{ (ceph_authorized_keys_policy[item.key] | default([])) | join('\n') }}\n"
+    dest: "{{ item.value }}/.ssh/authorized_keys"
+    owner: "{{ item.key }}"
+    group: "{{ item.key }}"
+    mode: "{{ ceph_authorized_keys_mode }}"
+  loop: "{{ ceph_ssh_user_homes | default({}) | dict2items }}"
+  become: true
+  when:
+    - enable_ceph_ssh_key_check | bool
+    - ceph_manage_authorized_keys | bool
+    - security_action_mode == 'enforce'
+    - item.key in ceph_authorized_keys_policy
+  tags:
+    - ceph_ssh_keys

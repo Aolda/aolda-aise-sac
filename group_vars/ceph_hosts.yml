@@ -1,0 +1,12 @@
+---
+# Ceph host policy overrides.
+# Role defaults stay report-oriented. Override values here after test-host validation.
+
+security_action_mode: report
+
+ceph_keyring_report_only: true
+ceph_auth_report_only: true
+enable_cephx_enforcement: false
+enable_ceph_selinux: false
+enable_ceph_patch: false
+ceph_patch_mode: report

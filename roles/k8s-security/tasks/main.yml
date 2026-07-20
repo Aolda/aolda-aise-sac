@@ -1,0 +1,39 @@
+---
+- name: "Kubernetes 사전 점검 task 포함"
+  ansible.builtin.include_tasks: precheck.yml
+
+- name: "Control Plane 공통 설정 task 포함"
+  ansible.builtin.include_tasks: 1_control_plane.yml
+  when:
+    - k8s_apply_control_plane | bool
+    - k8s_is_control_plane | bool
+
+- name: "API Server 설정 task 포함"
+  ansible.builtin.include_tasks: 2_api_server.yml
+  when:
+    - k8s_apply_api_server | bool
+    - k8s_apiserver_manifest_exists | bool
+
+- name: "Etcd TLS 및 암호화 안내 task 포함"
+  ansible.builtin.include_tasks: 3_etcd.yml
+  when:
+    - k8s_apiserver_manifest_exists | bool or k8s_etcd_manifest_exists | bool
+
+- name: "Worker Kubelet 설정 task 포함"
+  ansible.builtin.include_tasks: 4_kubelet.yml
+  when:
+    - k8s_apply_kubelet | bool
+    - k8s_kubelet_config_exists | bool
+
+- name: "Common policy 설정 및 check-only task 포함"
+  ansible.builtin.include_tasks: 5_policies.yml
+  when: k8s_apply_policies | bool or k8s_check_policies | bool
+
+- name: "Pod 보안 check-only task 포함"
+  ansible.builtin.include_tasks: 6_pod_security_checks.yml
+  when:
+    - k8s_enable_pod_security_checks | bool
+
+- name: "Kubernetes 적용 후 검증 task 포함"
+  ansible.builtin.include_tasks: validate.yml
+  when: k8s_validate_after_apply | bool

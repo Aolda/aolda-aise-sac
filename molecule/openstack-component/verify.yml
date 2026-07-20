@@ -1,0 +1,41 @@
+---
+- name: Register target
+  ansible.builtin.import_playbook: ../resources/target-host.yml
+
+- name: Verify OpenStack component security role
+  hosts: molecule_targets
+  become: true
+  gather_facts: false
+  vars:
+    openstack_component: "{{ lookup('env', 'MOLECULE_OPENSTACK_COMPONENT') | default('', true) }}"
+    openstack_component_config_map:
+      keystone: /etc/keystone/keystone.conf
+      nova: /etc/nova/nova.conf
+      cinder: /etc/cinder/cinder.conf
+      glance: /etc/glance/glance-api.conf
+      neutron: /etc/neutron/neutron.conf
+      horizon: /etc/openstack-dashboard/local_settings.py
+  tasks:
+    - name: Require supported OpenStack component
+      ansible.builtin.assert:
+        that:
+          - openstack_component in openstack_component_config_map.keys()
+        fail_msg: "Set MOLECULE_OPENSTACK_COMPONENT before verify."
+
+    - name: Verify component config file exists
+      ansible.builtin.stat:
+        path: "{{ openstack_component_config_map[openstack_component] }}"
+      register: openstack_config_stat
+
+    - name: Assert component config file is present
+      ansible.builtin.assert:
+        that:
+          - openstack_config_stat.stat.exists
+        fail_msg: "{{ openstack_component_config_map[openstack_component] }} was not found on the target VM."
+
+    - name: Show component config permissions
+      ansible.builtin.debug:
+        msg: >-
+          {{ openstack_component }} config mode={{ openstack_config_stat.stat.mode }},
+          owner={{ openstack_config_stat.stat.pw_name | default(openstack_config_stat.stat.uid) }},
+          group={{ openstack_config_stat.stat.gr_name | default(openstack_config_stat.stat.gid) }}

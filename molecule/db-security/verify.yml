@@ -1,0 +1,26 @@
+---
+- name: Register target
+  ansible.builtin.import_playbook: ../resources/target-host.yml
+
+- name: Verify DB security role
+  hosts: molecule_targets
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Verify DB config file exists
+      ansible.builtin.stat:
+        path: "{{ db_config_file | default('/etc/my.cnf') }}"
+      register: db_config_stat
+
+    - name: Assert DB config file is present
+      ansible.builtin.assert:
+        that:
+          - db_config_stat.stat.exists
+        fail_msg: "DB config file was not found. Set db_config_file for this VM."
+
+    - name: Show DB config permissions
+      ansible.builtin.debug:
+        msg: >-
+          DB config mode={{ db_config_stat.stat.mode }},
+          owner={{ db_config_stat.stat.pw_name | default(db_config_stat.stat.uid) }},
+          group={{ db_config_stat.stat.gr_name | default(db_config_stat.stat.gid) }}

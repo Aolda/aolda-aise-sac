@@ -1,0 +1,64 @@
+---
+- name: "5-0. Neutron 보안 적용 사전 점검"
+  ansible.builtin.import_tasks: precheck.yml
+
+- name: "5-1. 네트워킹 서비스 설정파일 소유권/접근권한 설정"
+  ansible.builtin.file:
+    path: "{{ neutron_security_config_file }}"
+    owner: "{{ neutron_security_config_owner }}"
+    group: "{{ neutron_security_config_group }}"
+    mode: "{{ neutron_security_config_mode }}"
+  when: neutron_security_manage_config_permissions | bool
+
+- name: "5-2. 네트워킹 서비스의 인증을 위한 keystone 사용"
+  community.general.ini_file:
+    path: "{{ neutron_security_config_file }}"
+    section: DEFAULT
+    option: auth_strategy
+    value: keystone
+    backup: true
+    mode: "{{ neutron_security_config_mode }}"
+  when:
+    - neutron_security_manage_auth_strategy_extension | bool
+    - neutron_security_auth_strategy in ['', 'noauth']
+  notify: Restart Neutron
+
+- name: "OSAUTH-15. 네트워킹 서비스의 인증을 위한 안전한 프로토콜 사용"
+  community.general.ini_file:
+    path: "{{ neutron_security_config_file }}"
+    section: keystone_authtoken
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    backup: true
+    mode: "{{ neutron_security_config_mode }}"
+  loop:
+    - option: auth_uri
+      value: "{{ neutron_security_keystone_endpoint }}"
+    - option: auth_url
+      value: "{{ neutron_security_keystone_endpoint }}"
+    - option: cafile
+      value: "{{ neutron_security_ca_cert }}"
+    - option: insecure
+      value: "false"
+  when: neutron_security_enable_tls | bool
+  notify: Restart Neutron
+
+- name: "OSAUTH-16. Neutron API 서버의 TLS 활성화"
+  community.general.ini_file:
+    path: "{{ neutron_security_config_file }}"
+    section: DEFAULT
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    backup: true
+    mode: "{{ neutron_security_config_mode }}"
+  loop:
+    - option: bind_ssl
+      value: "true"
+    - option: use_ssl
+      value: "true"
+  when: neutron_security_enable_tls | bool
+  notify: Restart Neutron
+
+- name: "5-5. Neutron 적용 후 검증"
+  ansible.builtin.import_tasks: validate.yml
+  when: neutron_security_validate_after_apply | bool

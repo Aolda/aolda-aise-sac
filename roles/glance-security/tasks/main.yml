@@ -1,0 +1,45 @@
+---
+- name: "4-0. Glance 보안 적용 사전 점검"
+  ansible.builtin.import_tasks: precheck.yml
+
+- name: "4-1. 이미지 스토리지 설정파일 소유권/접근권한 설정"
+  ansible.builtin.file:
+    path: "{{ glance_security_config_file }}"
+    owner: "{{ glance_security_config_owner }}"
+    group: "{{ glance_security_config_group }}"
+    mode: "{{ glance_security_config_mode }}"
+  when: glance_security_manage_config_permissions | bool
+
+- name: "OSAUTH-14. 이미지 스토리지 서비스 인증을 위한 Keystone 설정"
+  community.general.ini_file:
+    path: "{{ glance_security_config_file }}"
+    section: paste_deploy
+    option: flavor
+    value: keystone
+    backup: true
+    mode: "{{ glance_security_config_mode }}"
+  notify: Restart Glance
+
+- name: "OSAUTH-13. 이미지 스토리지 서비스 인증을 위한 TLS 활성화"
+  community.general.ini_file:
+    path: "{{ glance_security_config_file }}"
+    section: keystone_authtoken
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    backup: true
+    mode: "{{ glance_security_config_mode }}"
+  loop:
+    - option: auth_uri
+      value: "{{ glance_security_keystone_endpoint }}"
+    - option: auth_url
+      value: "{{ glance_security_keystone_endpoint }}"
+    - option: cafile
+      value: "{{ glance_security_ca_cert }}"
+    - option: insecure
+      value: "false"
+  when: glance_security_enable_tls | bool
+  notify: Restart Glance
+
+- name: "4-4. Glance 적용 후 검증"
+  ansible.builtin.import_tasks: validate.yml
+  when: glance_security_validate_after_apply | bool

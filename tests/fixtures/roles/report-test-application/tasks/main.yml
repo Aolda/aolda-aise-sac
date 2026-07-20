@@ -1,0 +1,18 @@
+---
+- name: "REPORT-TEST-03. 격리 환경 정책 적용"
+  ansible.builtin.copy:
+    dest: /tmp/aise-report-test-applied
+    content: "AISE isolated report test\n"
+    mode: "0600"
+
+- name: "REPORT-TEST-04. 정책 적용 결과 확인"
+  ansible.builtin.stat:
+    path: /tmp/aise-report-test-applied
+  register: report_test_applied_file
+
+- name: "REPORT-TEST-05. 실제 적용 모드 결과 검증"
+  ansible.builtin.assert:
+    that:
+      - report_test_applied_file.stat.exists
+    fail_msg: "격리 환경의 정책 적용 marker가 생성되지 않았습니다."
+  when: apply_policy | bool

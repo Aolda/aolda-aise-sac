@@ -1,0 +1,224 @@
+---
+- name: "7-1. 적용 후 Static Pod manifest YAML 구조 검증용 파일 읽기"
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  register: k8s_validate_static_manifest_raw
+  loop:
+    - name: apiserver
+      path: "{{ k8s_apiserver_manifest }}"
+      exists: "{{ k8s_apiserver_manifest_exists }}"
+    - name: controller_manager
+      path: "{{ k8s_controller_manager_manifest }}"
+      exists: "{{ k8s_controller_manager_manifest_exists }}"
+    - name: scheduler
+      path: "{{ k8s_scheduler_manifest }}"
+      exists: "{{ k8s_scheduler_manifest_exists }}"
+    - name: etcd
+      path: "{{ k8s_etcd_manifest }}"
+      exists: "{{ k8s_etcd_manifest_exists }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.exists | bool
+
+- name: "7-2. 적용 후 Static Pod manifest YAML 파싱 검증"
+  ansible.builtin.assert:
+    that:
+      - (item.content | b64decode | from_yaml).kind is defined
+      - (item.content | b64decode | from_yaml).spec is defined
+    fail_msg: "{{ item.item.path }} is not valid Kubernetes YAML after modification."
+    success_msg: "{{ item.item.path }} is valid YAML after modification."
+  loop: "{{ k8s_validate_static_manifest_raw.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.skipped is not defined
+
+- name: "7-3. kube-apiserver manifest 내용 설정"
+  ansible.builtin.set_fact:
+    k8s_apiserver_manifest_content: >-
+      {{
+        (
+          k8s_validate_static_manifest_raw.results
+          | selectattr('item.name', 'equalto', 'apiserver')
+          | map(attribute='content')
+          | first
+          | default('')
+        ) | b64decode
+      }}
+  when: k8s_apiserver_manifest_exists | bool
+
+- name: "7-4. kube-apiserver 인증/인가 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - k8s_apiserver_manifest_content is search('--anonymous-auth=false')
+      - k8s_apiserver_manifest_content is search('--service-account-lookup=true')
+      - k8s_apiserver_manifest_content is search('--authorization-mode=Node,RBAC')
+      - k8s_apiserver_manifest_content is not search('--token-auth-file=')
+    fail_msg: "kube-apiserver auth settings are missing or unsafe."
+    success_msg: "kube-apiserver auth settings are secure."
+  when:
+    - k8s_apply_api_server | bool
+    - k8s_apiserver_manifest_exists | bool
+
+- name: "7-4-1. kube-apiserver 인증/인가 설정 점검 결과 출력"
+  ansible.builtin.debug:
+    msg:
+      - "kube-apiserver auth settings are check-only in default mode."
+      - "anonymous_auth_disabled={{ k8s_apiserver_manifest_content is search('--anonymous-auth=false') }}"
+      - "service_account_lookup={{ k8s_apiserver_manifest_content is search('--service-account-lookup=true') }}"
+      - "authorization_node_rbac={{ k8s_apiserver_manifest_content is search('--authorization-mode=Node,RBAC') }}"
+      - "token_auth_file_absent={{ not (k8s_apiserver_manifest_content is search('--token-auth-file=')) }}"
+  when:
+    - not k8s_apply_api_server | bool
+    - k8s_apiserver_manifest_exists | bool
+
+- name: "7-5. kube-apiserver TLS 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - k8s_apiserver_manifest_content is search('--client-ca-file=')
+      - k8s_apiserver_manifest_content is search('--tls-cert-file=')
+      - k8s_apiserver_manifest_content is search('--tls-private-key-file=')
+      - k8s_apiserver_manifest_content is search('--tls-cipher-suites=')
+    fail_msg: "kube-apiserver TLS settings are missing."
+    success_msg: "kube-apiserver TLS settings are present."
+  when:
+    - k8s_apply_api_server | bool
+    - k8s_apiserver_manifest_exists | bool
+
+- name: "7-5-1. kube-apiserver TLS 및 감사 로그 설정 점검 결과 출력"
+  ansible.builtin.debug:
+    msg:
+      - "kube-apiserver TLS/audit settings are not modified in default mode."
+      - "client_ca_file={{ k8s_apiserver_manifest_content is search('--client-ca-file=') }}"
+      - "tls_cert_file={{ k8s_apiserver_manifest_content is search('--tls-cert-file=') }}"
+      - "tls_private_key_file={{ k8s_apiserver_manifest_content is search('--tls-private-key-file=') }}"
+      - "tls_cipher_suites={{ k8s_apiserver_manifest_content is search('--tls-cipher-suites=') }}"
+      - "audit_policy_file={{ k8s_apiserver_manifest_content is search('--audit-policy-file=') }}"
+      - "audit_log_path={{ k8s_apiserver_manifest_content is search('--audit-log-path=') }}"
+      - "admission_plugins={{ k8s_apiserver_manifest_content is search('--enable-admission-plugins=') }}"
+  when:
+    - not k8s_apply_api_server | bool
+    - k8s_apiserver_manifest_exists | bool
+
+- name: "7-6. etcd manifest 내용 설정"
+  ansible.builtin.set_fact:
+    k8s_etcd_manifest_content: >-
+      {{
+        (
+          k8s_validate_static_manifest_raw.results
+          | selectattr('item.name', 'equalto', 'etcd')
+          | map(attribute='content')
+          | first
+          | default('')
+        ) | b64decode
+      }}
+  when: k8s_etcd_manifest_exists | bool
+
+- name: "7-7. etcd TLS 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - k8s_etcd_manifest_content is search('--client-cert-auth=true')
+      - k8s_etcd_manifest_content is search('--peer-client-cert-auth=true')
+      - k8s_etcd_manifest_content is search('--trusted-ca-file=')
+      - k8s_etcd_manifest_content is search('--cert-file=')
+      - k8s_etcd_manifest_content is search('--key-file=')
+    fail_msg: "etcd TLS settings are missing."
+    success_msg: "etcd TLS settings are present."
+  when:
+    - k8s_apply_etcd_tls | bool
+    - k8s_etcd_tls_files_present | bool
+    - k8s_etcd_manifest_exists | bool
+
+- name: "7-7-1. etcd TLS 설정 점검 결과 출력"
+  ansible.builtin.debug:
+    msg:
+      - "etcd TLS is check-only/manual in default mode."
+      - "tls_files_present={{ k8s_etcd_tls_files_present | default(false) }}"
+      - "client_cert_auth={{ k8s_etcd_manifest_content is search('--client-cert-auth=true') }}"
+      - "peer_client_cert_auth={{ k8s_etcd_manifest_content is search('--peer-client-cert-auth=true') }}"
+      - "trusted_ca_file={{ k8s_etcd_manifest_content is search('--trusted-ca-file=') }}"
+      - "cert_file={{ k8s_etcd_manifest_content is search('--cert-file=') }}"
+      - "key_file={{ k8s_etcd_manifest_content is search('--key-file=') }}"
+  when:
+    - not k8s_apply_etcd_tls | bool
+    - k8s_etcd_manifest_exists | bool
+
+- name: "7-7-2. etcd 데이터 디렉터리 상태 확인"
+  ansible.builtin.stat:
+    path: "{{ k8s_etcd_data_dir }}"
+  register: k8s_etcd_data_dir_stat
+  when: k8s_etcd_manifest_exists | bool
+
+- name: "7-7-3. etcd 데이터 디렉터리 권한 점검 결과 출력"
+  ansible.builtin.debug:
+    msg:
+      - "etcd data directory permission is check-only in default mode."
+      - "path={{ k8s_etcd_data_dir }}"
+      - "exists={{ k8s_etcd_data_dir_stat.stat.exists | default(false) }}"
+      - "owner={{ k8s_etcd_data_dir_stat.stat.pw_name | default('unknown') }}"
+      - "group={{ k8s_etcd_data_dir_stat.stat.gr_name | default('unknown') }}"
+      - "mode={{ k8s_etcd_data_dir_stat.stat.mode | default('unknown') }}"
+      - "Set k8s_apply_etcd_permissions=true to enforce root:root 0700."
+  when:
+    - k8s_etcd_manifest_exists | bool
+    - not k8s_apply_etcd_permissions | bool
+
+- name: "7-7-4. etcd 데이터 디렉터리 권한 엄격 검증"
+  ansible.builtin.assert:
+    that:
+      - k8s_etcd_data_dir_stat.stat.exists
+      - k8s_etcd_data_dir_stat.stat.pw_name == "root"
+      - k8s_etcd_data_dir_stat.stat.gr_name == "root"
+      - k8s_etcd_data_dir_stat.stat.mode == "0700"
+    fail_msg: "etcd data directory ownership or mode is not secure."
+    success_msg: "etcd data directory ownership and mode are secure."
+  when:
+    - k8s_etcd_manifest_exists | bool
+    - k8s_apply_etcd_permissions | bool
+
+- name: "7-8. Kubelet 설정 파일 조회"
+  ansible.builtin.slurp:
+    src: "{{ k8s_kubelet_config_file }}"
+  register: k8s_validate_kubelet_config_raw
+  when: k8s_kubelet_config_exists | bool
+
+- name: "7-9. Kubelet 설정 YAML 파싱"
+  ansible.builtin.set_fact:
+    k8s_validate_kubelet_config: "{{ k8s_validate_kubelet_config_raw.content | b64decode | from_yaml }}"
+  when: k8s_kubelet_config_exists | bool
+
+- name: "7-10. Kubelet 보안 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validate_kubelet_config.authentication.anonymous.enabled | bool)
+      - k8s_validate_kubelet_config.authorization.mode == "Webhook"
+      - k8s_validate_kubelet_config.protectKernelDefaults | bool
+      - k8s_validate_kubelet_config.tlsCipherSuites is defined
+    fail_msg: "Kubelet security settings are missing or unsafe."
+    success_msg: "Kubelet security settings are secure."
+  when:
+    - k8s_apply_kubelet | bool
+    - k8s_kubelet_config_exists | bool
+
+- name: "7-10-1. Kubelet 보안 설정 점검 결과 출력"
+  ansible.builtin.debug:
+    msg:
+      - "Kubelet security settings are check-only in default mode."
+      - "anonymous_auth_disabled={{ not (k8s_validate_kubelet_config.authentication.anonymous.enabled | default(true) | bool) }}"
+      - "authorization_webhook={{ k8s_validate_kubelet_config.authorization.mode | default('') == 'Webhook' }}"
+      - "protect_kernel_defaults={{ k8s_validate_kubelet_config.protectKernelDefaults | default(false) | bool }}"
+      - "tls_cipher_suites_defined={{ k8s_validate_kubelet_config.tlsCipherSuites is defined }}"
+  when:
+    - not k8s_apply_kubelet | bool
+    - k8s_kubelet_config_exists | bool
+
+- name: "7-11. etcd encryption 수동 절차 안내"
+  ansible.builtin.debug:
+    msg:
+      - "etcd encryption is manual-required."
+      - "Back up etcd and prepare EncryptionConfiguration before enabling the API server flag."
+      - "Re-encrypt existing Secrets by reading and re-applying them manually. This role does not automate that step."
+  when: >-
+    not (
+      k8s_apply_etcd_encryption_config | bool
+      and k8s_acknowledge_secret_reencryption_required | bool
+    )

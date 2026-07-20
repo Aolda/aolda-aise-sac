@@ -1,0 +1,54 @@
+---
+# CHECK: DB 설정 파일 경로와 로그 저장 경로를 대상 DB 서버에서 확인하세요.
+
+- name: "1-1. DB 구동 계정을 mysql로 강제 설정"
+  ansible.builtin.lineinfile:
+    path: "{{ db_config_file }}"
+    regexp: '^user\s*='
+    line: "user = {{ db_runtime_user }}"
+    insertafter: '\[mysqld\]'
+    state: present
+    backup: true
+  when: db_enforce_runtime_user | bool
+  notify: Restart DB Service
+
+- name: "1-1-1. DB 구동 계정 자동 변경 제외 안내"
+  ansible.builtin.debug:
+    msg: >-
+      DB runtime user is checked in validate mode. This role does not change
+      the mysqld runtime user by default. Set db_enforce_runtime_user=true
+      only after confirming the service manager configuration.
+  when: not db_enforce_runtime_user | bool
+
+- name: "2-1. 설정 파일 권한을 640으로 설정 (root:mysql)"
+  ansible.builtin.file:
+    path: "{{ db_config_file }}"
+    owner: root
+    group: "{{ db_runtime_group }}"
+    mode: "{{ db_max_config_file_mode }}"
+
+- name: "3-1. 로그 저장 디렉터리 생성 및 권한 설정"
+  ansible.builtin.file:
+    path: "{{ db_log_dir }}"
+    state: directory
+    owner: "{{ db_runtime_user }}"
+    group: "{{ db_runtime_group }}"
+    mode: '0750'
+
+- name: "3-2. Slow Query Log 활성화 설정 추가"
+  ansible.builtin.blockinfile:
+    path: "{{ db_config_file }}"
+    marker: "{{ db_logging_marker }}"
+    insertafter: "[mysqld]"
+    backup: true
+    block: |
+      slow_query_log = 1
+      slow_query_log_file = {{ db_slow_query_log_file }}
+      long_query_time = {{ db_long_query_time }}
+      log_error = {{ db_error_log_file }}
+  notify: Restart DB Service
+
+- name: "3-3. General Log 강제 활성화 제외 안내"
+  ansible.builtin.debug:
+    msg: "general_log is intentionally not forced by this role. Keep db_enable_general_log=false unless explicitly required."
+  when: not db_enable_general_log | bool

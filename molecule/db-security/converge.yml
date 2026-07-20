@@ -1,0 +1,13 @@
+---
+- name: Register target
+  ansible.builtin.import_playbook: ../resources/target-host.yml
+
+- name: Converge DB security role
+  hosts: molecule_targets
+  become: true
+  gather_facts: true
+  vars:
+    db_apply_security_patch: "{{ (lookup('env', 'DB_APPLY_SECURITY_PATCH') | default('false', true)) | bool }}"
+    db_set_default_authentication_plugin: "{{ (lookup('env', 'DB_SET_DEFAULT_AUTH_PLUGIN') | default('false', true)) | bool }}"
+  roles:
+    - role: db-security

@@ -1,0 +1,61 @@
+---
+- name: Verify project Ansible syntax
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    project_root: /home/subiin/projects/aolda-aise-sac
+    syntax_check_commands:
+      - name: db-security role test playbook
+        cmd: ansible-playbook --syntax-check roles/db-security/tests/test.yml -i roles/db-security/tests/inventory
+      - name: docker-security role test playbook
+        cmd: ansible-playbook --syntax-check roles/docker-security/tests/test.yml -i roles/docker-security/tests/inventory
+      - name: k8s-security role test playbook
+        cmd: ansible-playbook --syntax-check roles/k8s-security/tests/test.yml -i roles/k8s-security/tests/inventory
+      - name: OpenStack security playbook
+        cmd: ansible-playbook --syntax-check playbooks/openstack-security.yml -i inventory/openstack.example.ini
+      - name: 2026 security policy playbook
+        cmd: ansible-playbook --syntax-check playbooks/security-policy-2026.yml -i inventory/security-policy-2026.example.ini
+      - name: Molecule DB converge playbook
+        cmd: ansible-playbook --syntax-check molecule/db-security/converge.yml -i localhost,
+      - name: Molecule DB verify playbook
+        cmd: ansible-playbook --syntax-check molecule/db-security/verify.yml -i localhost,
+      - name: Molecule Docker delegated converge playbook
+        cmd: ansible-playbook --syntax-check molecule/docker-security/converge.yml -i localhost,
+      - name: Molecule Docker delegated verify playbook
+        cmd: ansible-playbook --syntax-check molecule/docker-security/verify.yml -i localhost,
+      - name: Molecule Docker container converge playbook
+        cmd: ansible-playbook --syntax-check molecule/docker-security-docker/converge.yml -i localhost,
+      - name: Molecule Docker container prepare playbook
+        cmd: ansible-playbook --syntax-check molecule/docker-security-docker/prepare.yml -i localhost,
+      - name: Molecule Docker container verify playbook
+        cmd: ansible-playbook --syntax-check molecule/docker-security-docker/verify.yml -i localhost,
+      - name: Molecule Kubernetes converge playbook
+        cmd: ansible-playbook --syntax-check molecule/k8s-security/converge.yml -i localhost,
+      - name: Molecule Kubernetes verify playbook
+        cmd: ansible-playbook --syntax-check molecule/k8s-security/verify.yml -i localhost,
+      - name: Molecule OpenStack converge playbook
+        cmd: ansible-playbook --syntax-check molecule/openstack-component/converge.yml -i localhost,
+      - name: Molecule OpenStack verify playbook
+        cmd: ansible-playbook --syntax-check molecule/openstack-component/verify.yml -i localhost,
+  tasks:
+    - name: Run project syntax checks
+      ansible.builtin.command: "{{ item.cmd }}"
+      args:
+        chdir: "{{ project_root }}"
+      environment:
+        ANSIBLE_HOME: "{{ project_root }}/.ansible"
+        ANSIBLE_LOCAL_TEMP: /tmp/ansible-local
+        ANSIBLE_REMOTE_TEMP: /tmp/ansible-remote
+      register: syntax_check_results
+      changed_when: false
+      loop: "{{ syntax_check_commands }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Report syntax check summary
+      ansible.builtin.debug:
+        msg: "{{ item.item.name }} passed"
+      loop: "{{ syntax_check_results.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"

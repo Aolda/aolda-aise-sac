@@ -1,0 +1,58 @@
+---
+- name: "3-7-1. Barbican/KMS 서비스 존재 확인"
+  ansible.builtin.shell: ". {{ cinder_security_openrc_path }} && openstack service list --service key-manager -f value -c Type"
+  args:
+    executable: /bin/bash
+  register: cinder_security_key_manager_service
+  changed_when: false
+  failed_when: cinder_security_key_manager_service.rc != 0 or 'key-manager' not in cinder_security_key_manager_service.stdout
+  environment: "{{ cinder_security_cli_environment }}"
+
+- name: "3-7-2. 암호화 볼륨 타입 존재 확인"
+  ansible.builtin.shell: ". {{ cinder_security_openrc_path }} && openstack volume type show {{ cinder_security_encrypted_volume_type_name }}"
+  args:
+    executable: /bin/bash
+  register: cinder_security_encrypted_volume_type
+  changed_when: false
+  failed_when: false
+  environment: "{{ cinder_security_cli_environment }}"
+
+- name: "3-7-3. 암호화 볼륨 타입 생성"
+  ansible.builtin.shell: ". {{ cinder_security_openrc_path }} && openstack volume type create {{ cinder_security_encrypted_volume_type_name }}"
+  args:
+    executable: /bin/bash
+  register: cinder_security_volume_type_create
+  changed_when: cinder_security_volume_type_create.rc == 0
+  failed_when: cinder_security_volume_type_create.rc != 0
+  environment: "{{ cinder_security_cli_environment }}"
+  when: cinder_security_encrypted_volume_type.rc != 0
+
+- name: "3-7-4. 암호화 볼륨 타입의 현재 암호화 설정 확인"
+  ansible.builtin.shell: >
+    . {{ cinder_security_openrc_path }} &&
+    openstack volume type show
+    {{ cinder_security_encrypted_volume_type_name }}
+    -f value -c properties
+  args:
+    executable: /bin/bash
+  register: cinder_security_volume_type_properties
+  changed_when: false
+  failed_when: cinder_security_volume_type_properties.rc != 0
+  environment: "{{ cinder_security_cli_environment }}"
+
+- name: "3-7-5. 블록 스토리지 볼륨 암호화 설정"
+  ansible.builtin.shell: >
+    . {{ cinder_security_openrc_path }} &&
+    openstack volume type set
+    --encryption-provider {{ cinder_security_encryption_provider }}
+    --encryption-cipher {{ cinder_security_encryption_cipher }}
+    --encryption-key-size {{ cinder_security_encryption_key_size }}
+    --encryption-control-location {{ cinder_security_encryption_control_location }}
+    {{ cinder_security_encrypted_volume_type_name }}
+  args:
+    executable: /bin/bash
+  register: cinder_security_volume_type_encryption_set
+  changed_when: cinder_security_volume_type_encryption_set.rc == 0
+  failed_when: cinder_security_volume_type_encryption_set.rc != 0
+  environment: "{{ cinder_security_cli_environment }}"
+  when: cinder_security_encryption_provider not in cinder_security_volume_type_properties.stdout

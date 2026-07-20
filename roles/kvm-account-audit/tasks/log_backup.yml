@@ -1,0 +1,68 @@
+---
+- name: "KVM 로그 관리 report"
+  ansible.builtin.debug:
+    msg:
+      - "enable_kvm_log_backup={{ enable_kvm_log_backup }}"
+      - "paths={{ kvm_log_paths | join(',') }}"
+      - "period={{ kvm_log_rotate_period }}"
+      - "rotate={{ kvm_log_rotate_count }}"
+      - "compress={{ kvm_log_compress }}"
+      - "remote_backup={{ kvm_log_backup_enabled }}"
+      - "mode={{ security_action_mode }}"
+  when: enable_kvm_log_backup | bool
+  tags:
+    - kvm_log_backup
+
+- name: "KVM logrotate 설정 배포"
+  ansible.builtin.template:
+    src: libvirt-security.logrotate.j2
+    dest: "{{ kvm_logrotate_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/logrotate -d %s
+  become: true
+  when:
+    - enable_kvm_log_backup | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - kvm_log_backup
+
+- name: "KVM 로그 백업 디렉터리 생성"
+  ansible.builtin.file:
+    path: "{{ kvm_log_backup_dest }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  become: true
+  when:
+    - enable_kvm_log_backup | bool
+    - kvm_log_backup_enabled | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - kvm_log_backup
+
+- name: "KVM 로그 백업 실행"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    backup_dir="{{ kvm_log_backup_dest }}/{{ inventory_hostname }}-$(date +%Y%m%d%H%M%S)"
+    mkdir -p "$backup_dir"
+    for path_glob in {{ kvm_log_paths | map('quote') | join(' ') }}; do
+      for log_file in $path_glob; do
+        [ -f "$log_file" ] || continue
+        cp -a "$log_file" "$backup_dir"/
+      done
+    done
+    printf '%s\n' "$backup_dir"
+  args:
+    executable: /bin/bash
+  register: kvm_log_backup_result
+  changed_when: true
+  become: true
+  when:
+    - enable_kvm_log_backup | bool
+    - kvm_log_backup_enabled | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - kvm_log_backup

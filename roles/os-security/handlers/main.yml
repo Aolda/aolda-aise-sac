@@ -1,0 +1,22 @@
+---
+
+- name: restart ssh
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+
+- name: restart xinetd
+  ansible.builtin.service:
+    name: xinetd
+    state: restarted
+  ignore_errors: yes
+
+- name: restart timesyncd
+  ansible.builtin.service:
+    name: "{{ service_timesyncd | default('systemd-timesyncd') }}"
+    state: restarted
+
+- name: restart rsyslog
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted

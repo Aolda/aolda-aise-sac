@@ -1,0 +1,6 @@
+---
+- name: Test Docker security role
+  hosts: localhost
+  become: true
+  roles:
+    - docker-security

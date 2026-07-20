@@ -1,0 +1,81 @@
+---
+# CHECK: kubelet config, systemd drop-in, pki 경로를 대상 Worker에서 확인하세요.
+
+- name: "4-1. Kubelet config.yaml 설정 - 인증(Authentication) 제어"
+  ansible.builtin.replace:
+    path: "{{ k8s_kubelet_config_file }}"
+    regexp: '^(authentication:\n\s*anonymous:\n\s*enabled:\s*)true'
+    replace: '\g<1>false'
+    backup: true
+  notify: Restart Kubelet
+  when: k8s_kubelet_config_exists | bool
+
+- name: "4-2. Kubelet config.yaml 설정 - 인가(Authorization) 제어"
+  ansible.builtin.replace:
+    path: "{{ k8s_kubelet_config_file }}"
+    regexp: '^(authorization:\n\s*mode:\s*)AlwaysAllow'
+    replace: '\g<1>Webhook'
+    backup: true
+  notify: Restart Kubelet
+  when: k8s_kubelet_config_exists | bool
+
+- name: "4-3. Kubelet config.yaml 설정 - Kernel 파라미터 보호 활성화"
+  ansible.builtin.lineinfile:
+    path: "{{ k8s_kubelet_config_file }}"
+    regexp: '^protectKernelDefaults:'
+    line: 'protectKernelDefaults: true'
+    state: present
+    backup: true
+  notify: Restart Kubelet
+  when: k8s_kubelet_config_exists | bool
+
+- name: "4-4. Kubelet config.yaml 설정 - 강력한 TLS Cipher Suites 적용"
+  ansible.builtin.lineinfile:
+    path: "{{ k8s_kubelet_config_file }}"
+    regexp: '^tlsCipherSuites:'
+    line: "tlsCipherSuites: {{ k8s_kubelet_tls_cipher_suites | to_json }}"
+    insertafter: EOF
+    state: present
+    backup: true
+  notify: Restart Kubelet
+  when: k8s_kubelet_config_exists | bool
+
+- name: "4-5. Kubelet 주요 환경설정 파일 소유권 및 권한 설정 (644)"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: k8s_kubelet_config_file_stats
+  loop: "{{ k8s_kubelet_config_files }}"
+
+- name: "4-6. 존재하는 Kubelet 주요 환경설정 파일 권한 설정"
+  ansible.builtin.file:
+    path: "{{ item.stat.path }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ k8s_kubelet_config_file_stats.results }}"
+  when: item.stat.exists
+
+- name: "4-7. 워커 노드 인증서 파일(.crt) 권한 644 설정"
+  ansible.builtin.find:
+    paths: "{{ k8s_kubelet_pki_dir }}"
+    patterns: "*.crt,*.pem"
+    recurse: true
+  register: worker_crt_files
+
+- name: "4-8. 검색된 워커 노드 인증서 파일 권한 적용"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ worker_crt_files.files }}"
+
+- name: "4-9. Kubelet 버전 점검 (보안 패치 확인용)"
+  ansible.builtin.command: kubelet --version
+  register: kubelet_version
+  changed_when: false
+  failed_when: false
+
+- name: "4-10. 현재 Kubelet 버전 출력"
+  ansible.builtin.debug:
+    msg: "현재 워커 노드의 Kubelet 버전입니다. 취약점 여부를 확인하세요: {{ kubelet_version.stdout }}"

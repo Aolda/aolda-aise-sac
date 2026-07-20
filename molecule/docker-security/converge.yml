@@ -1,0 +1,14 @@
+---
+- name: Register target
+  ansible.builtin.import_playbook: ../resources/target-host.yml
+
+- name: Converge Docker security role
+  hosts: molecule_targets
+  become: true
+  gather_facts: true
+  vars:
+    docker_apply_package_update: "{{ (lookup('env', 'DOCKER_APPLY_PACKAGE_UPDATE') | default('false', true)) | bool }}"
+    docker_apply_daemon_security: "{{ (lookup('env', 'DOCKER_APPLY_DAEMON_SECURITY') | default('false', true)) | bool }}"
+    docker_fail_on_runtime_policy_violation: "{{ (lookup('env', 'DOCKER_FAIL_ON_RUNTIME_POLICY_VIOLATION') | default('false', true)) | bool }}"
+  roles:
+    - role: docker-security

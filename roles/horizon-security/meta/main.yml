@@ -1,0 +1,8 @@
+---
+galaxy_info:
+  role_name: horizon_security
+  author: aolda-aise-sac
+  description: KISA OpenStack Horizon security controls.
+  license: MIT
+  min_ansible_version: "2.12"
+dependencies: []

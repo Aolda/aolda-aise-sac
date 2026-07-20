@@ -1,0 +1,56 @@
+---
+- name: "KVM SSH 설정 디렉터리 생성"
+  ansible.builtin.file:
+    path: "{{ sshd_security_config_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: enable_kvm_session_timeout | bool
+  tags:
+    - kvm_session_timeout
+
+- name: "KVM SSH timeout 설정 배포"
+  ansible.builtin.template:
+    src: sshd_security_baseline.conf.j2
+    dest: "{{ sshd_security_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  become: true
+  notify: Reload sshd
+  when:
+    - enable_kvm_session_timeout | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - kvm_session_timeout
+
+- name: "KVM shell timeout 설정 배포"
+  ansible.builtin.template:
+    src: shell_timeout.sh.j2
+    dest: "{{ shell_timeout_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  when:
+    - enable_kvm_session_timeout | bool
+    - apply_shell_timeout | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - kvm_session_timeout
+
+- name: "KVM 세션 timeout report"
+  ansible.builtin.debug:
+    msg:
+      - "enable_kvm_session_timeout={{ enable_kvm_session_timeout }}"
+      - "ssh_client_alive_interval={{ ssh_client_alive_interval }}"
+      - "ssh_client_alive_count_max={{ ssh_client_alive_count_max }}"
+      - "apply_shell_timeout={{ apply_shell_timeout }}"
+      - "shell_timeout={{ shell_timeout }}"
+      - "mode={{ security_action_mode }}"
+  when: enable_kvm_session_timeout | bool
+  tags:
+    - kvm_session_timeout

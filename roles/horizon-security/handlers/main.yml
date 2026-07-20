@@ -1,0 +1,6 @@
+---
+- name: Restart Horizon
+  ansible.builtin.service:
+    name: "{{ horizon_security_service_name }}"
+    state: restarted
+  when: horizon_security_restart_service | bool

@@ -1,0 +1,20 @@
+---
+nova_security_restart_service: false
+nova_security_validate_after_apply: true
+nova_security_openrc_path: /root/admin-openrc
+nova_security_cli_environment: {}
+nova_security_service_name: nova-api
+nova_security_manage_config_permissions: false
+
+nova_security_config_file: /etc/nova/nova.conf
+nova_security_config_owner: root
+nova_security_config_group: nova
+nova_security_config_mode: "0640"
+
+nova_security_enable_tls: false
+nova_security_keystone_tls_confirmed: false
+nova_security_validate_certs: true
+nova_security_ca_cert: ""
+nova_security_keystone_endpoint: ""
+nova_security_glance_endpoint: ""
+nova_security_tls_status_codes: [200, 300, 401, 403]

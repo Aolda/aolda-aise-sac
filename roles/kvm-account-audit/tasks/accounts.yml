@@ -1,0 +1,182 @@
+---
+- name: "KVM 계정 정책 변수 호환성 설정"
+  ansible.builtin.set_fact:
+    kvm_accounts_effective_target_groups: "{{ kvm_account_audit.target_groups | default(kvm_account_target_groups) }}"
+    kvm_accounts_effective_inactivity_days: "{{ kvm_account_audit.inactivity_threshold_days | default(kvm_account_inactivity_threshold_days) }}"
+    kvm_accounts_effective_restriction_days: "{{ kvm_account_audit.restriction_threshold_days | default(kvm_account_restriction_threshold_days) }}"
+  tags:
+    - kvm_accounts
+
+- name: "KVM 그룹 기반 미사용 계정 조회"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    current_time="$(date +%s)"
+    declare -A seen_users=()
+    declare -a target_groups=({{ kvm_accounts_effective_target_groups | map('quote') | join(' ') }})
+
+    for group_name in "${target_groups[@]}"; do
+      group_line="$(getent group "$group_name" || true)"
+      [ -z "$group_line" ] && continue
+      group_members="$(printf '%s' "$group_line" | awk -F: '{print $4}' | tr ',' '\n')"
+
+      while read -r username; do
+        [ -z "$username" ] && continue
+        [ -n "${seen_users[$username]:-}" ] && continue
+        seen_users[$username]=1
+
+        if printf '%s\n' {{ kvm_account_excluded_users | map('quote') | join(' ') }} | grep -Fxq "$username"; then
+          continue
+        fi
+
+        passwd_entry="$(getent passwd "$username" || true)"
+        [ -z "$passwd_entry" ] && continue
+
+        uid="$(printf '%s' "$passwd_entry" | awk -F: '{print $3}')"
+        [ "$uid" -lt {{ kvm_uid_min }} ] && [ "$username" != "root" ] && continue
+
+        lastlog_line="$(lastlog -u "$username" 2>/dev/null | awk 'NR==2')"
+        if printf '%s' "$lastlog_line" | grep -q "Never logged in"; then
+          days=9999
+          last_login="Never"
+        else
+          last_login="$(printf '%s' "$lastlog_line" | awk '{print $(NF-3), $(NF-2), $(NF-1), $NF}')"
+          last_login_time="$(date -d "$last_login" +%s 2>/dev/null || echo 0)"
+          [ "$last_login_time" = "0" ] && continue
+          days="$(( (current_time - last_login_time) / 86400 ))"
+        fi
+
+        if [ "$days" -ge {{ kvm_accounts_effective_inactivity_days }} ]; then
+          printf '%s|%s|%s\n' "$username" "$last_login" "$days"
+        fi
+      done <<< "$group_members"
+    done | sort -t'|' -k3 -rn
+  args:
+    executable: /bin/bash
+  register: kvm_inactive_group_accounts_raw
+  changed_when: false
+  become: true
+  when: enable_kvm_account_hardening | bool
+  tags:
+    - kvm_accounts
+
+- name: "KVM 명시적 퇴직 계정 조회"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    for username in {{ kvm_retired_users | map('quote') | join(' ') }}; do
+      [ -z "$username" ] && continue
+      getent passwd "$username" >/dev/null || continue
+      printf '%s|RetiredPolicy|9999\n' "$username"
+    done
+  args:
+    executable: /bin/bash
+  register: kvm_retired_accounts_raw
+  changed_when: false
+  become: true
+  when: enable_kvm_account_hardening | bool
+  tags:
+    - kvm_accounts
+
+- name: "KVM 계정 점검 결과 병합"
+  ansible.builtin.set_fact:
+    inactivity_accounts: >-
+      {{
+        (
+          (kvm_inactive_group_accounts_raw.stdout_lines | default([]))
+          + (kvm_retired_accounts_raw.stdout_lines | default([]))
+        )
+        | unique
+        | map('split', '|')
+        | list
+      }}
+    locked_accounts: []
+    deleted_accounts: []
+  when: enable_kvm_account_hardening | bool
+  tags:
+    - kvm_accounts
+
+- name: "KVM 계정 점검 결과 출력"
+  ansible.builtin.debug:
+    msg:
+      - "mode={{ security_action_mode }}, account_action={{ kvm_account_action }}"
+      - "inactive_or_retired_accounts={{ inactivity_accounts | default([]) | length }}"
+  when: enable_kvm_account_hardening | bool
+  tags:
+    - kvm_accounts
+
+- name: "KVM 계정 잠금 대상 산정"
+  ansible.builtin.set_fact:
+    kvm_lock_target_accounts: >-
+      {{
+        inactivity_accounts
+        | selectattr('2', 'defined')
+        | selectattr('2', 'ge', kvm_accounts_effective_restriction_days | string)
+        | rejectattr('0', 'in', kvm_allowed_users)
+        | rejectattr('0', 'in', kvm_account_excluded_users)
+        | list
+      }}
+  when: enable_kvm_account_hardening | bool
+  tags:
+    - kvm_accounts
+
+- name: "KVM 계정 잠금 처리"
+  ansible.builtin.user:
+    name: "{{ item[0] }}"
+    password_lock: true
+    shell: "{{ kvm_nologin_shell }}"
+  loop: "{{ kvm_lock_target_accounts | default([]) }}"
+  become: true
+  register: kvm_lock_result
+  when:
+    - enable_kvm_account_hardening | bool
+    - security_action_mode == 'enforce'
+    - kvm_account_action == 'lock'
+  tags:
+    - kvm_accounts
+
+- name: "KVM 계정 삭제 처리"
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: absent
+    remove: "{{ kvm_remove_home | bool }}"
+  loop: "{{ kvm_retired_users | difference(kvm_allowed_users) | difference(kvm_account_excluded_users) }}"
+  become: true
+  register: kvm_delete_result
+  when:
+    - enable_kvm_account_hardening | bool
+    - security_action_mode == 'delete'
+    - kvm_account_action == 'delete'
+  tags:
+    - kvm_accounts
+
+- name: "KVM 계정 조치 결과 변수 생성"
+  ansible.builtin.set_fact:
+    locked_accounts: "{{ kvm_lock_result.results | default([]) | selectattr('changed', 'equalto', true) | map(attribute='item.0') | list }}"
+    deleted_accounts: "{{ kvm_delete_result.results | default([]) | selectattr('changed', 'equalto', true) | map(attribute='item') | list }}"
+  when: enable_kvm_account_hardening | bool
+  tags:
+    - kvm_accounts
+
+- name: "KVM 계정 수동 조치 스크립트 배포"
+  ansible.builtin.template:
+    src: apply_account_restrictions.j2
+    dest: "{{ kvm_account_manual_script_dir }}/apply_account_restrictions_{{ ansible_date_time.iso8601_basic_short }}.sh"
+    owner: root
+    group: root
+    mode: "0750"
+  become: true
+  when:
+    - enable_kvm_account_hardening | bool
+    - kvm_account_manual_script_enabled | bool
+    - inactivity_accounts | default([]) | length > 0
+  tags:
+    - kvm_accounts
+
+- name: "KVM 계정 정책 완료"
+  ansible.builtin.debug:
+    msg:
+      - "report=security_report_callback"
+      - "locked={{ locked_accounts | default([]) | join(',') }}"
+      - "deleted={{ deleted_accounts | default([]) | join(',') }}"
+  when: enable_kvm_account_hardening | bool
+  tags:
+    - kvm_accounts

@@ -1,0 +1,5 @@
+---
+- name: Restart DB Service
+  ansible.builtin.service:
+    name: "{{ db_service_name }}"
+    state: restarted

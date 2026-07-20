@@ -1,0 +1,27 @@
+---
+- name: "Storage faillock report"
+  ansible.builtin.debug:
+    msg:
+      - "deny={{ faillock_deny }}"
+      - "fail_interval={{ faillock_fail_interval }}"
+      - "unlock_time={{ faillock_unlock_time }}"
+      - "even_deny_root={{ faillock_even_deny_root }}"
+      - "admin_group_exempt={{ faillock_admin_group_exempt }}"
+      - "mode={{ security_action_mode }}"
+  when: enable_storage_account_lock | bool
+  tags:
+    - storage_account_lock
+
+- name: "Storage faillock 설정 배포"
+  ansible.builtin.template:
+    src: faillock.conf.j2
+    dest: "{{ storage_faillock_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  when:
+    - enable_storage_account_lock | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - storage_account_lock

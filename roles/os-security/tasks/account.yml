@@ -1,0 +1,149 @@
+---
+# 계정 및 인증 통제 영역
+
+- name: "OpenSSH 서버 설치 여부 사전 점검"
+  ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "{{ package_ssh_server }}"
+  register: ssh_check
+  failed_when: false
+  changed_when: false
+
+- name: "OpenSSH 서버가 없을 경우에만 설치 진행"
+  ansible.builtin.apt:
+    name: "{{ package_ssh_server }}"
+    state: present
+    update_cache: yes
+  when: ssh_check.rc != 0
+
+- name: "SSH 패스워드 인증 방식 설정 ({{ sshd_password_authentication | default('yes') }})"
+  ansible.builtin.lineinfile:
+    path: "{{ path_sshd_config | default('/etc/ssh/sshd_config') }}"
+    regexp: '^#?\s*PasswordAuthentication'
+    line: "PasswordAuthentication {{ sshd_password_authentication | default('yes') }}"
+    state: present
+  register: sshd_pw_auth_update
+  notify: restart ssh
+
+- name: "SSH 권한 분리 디렉토리 생성 확인"
+  ansible.builtin.file:
+    path: "{{ path_sshd_run_dir }}"
+    state: directory
+    owner: "{{ file_owner_root }}"
+    group: "{{ file_group_root }}"
+    mode: "{{ file_mode_755 }}"
+  register: sshd_config_update
+  
+- name: "SSH 설정 파일에서 root 원격 접속 제한"
+  ansible.builtin.lineinfile:
+    path: "{{ path_sshd_config }}"
+    regexp: '^#?\s*PermitRootLogin\s+'
+    line: "PermitRootLogin {{ sshd_permit_root_login }}"
+    state: present
+    validate: 'sshd -t -f %s'
+  register: sshd_root_login_update
+  notify: restart ssh
+
+- name: "패스워드 최대 사용 기간 설정"
+  ansible.builtin.lineinfile:
+    path: "{{ path_login_defs }}"
+    regexp: '^PASS_MAX_DAYS'
+    line: "PASS_MAX_DAYS {{ os_pass_max_days }}"
+    state: present
+  register: pass_max_days_update
+
+- name: "패스워드 복잡도 검증 모듈({{ package_pam_pwquality | default('libpam-pwquality') }}) 사전 설치"
+  ansible.builtin.apt:
+    name: "{{ package_pam_pwquality | default('libpam-pwquality') }}"
+    state: present
+    update_cache: yes
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+
+# [계정 접속 잠금 정책]
+- name: "계정 접속 잠금 횟수 제한 적용"
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^\s*deny\s*='
+    line: 'deny = {{ pam_deny_count }}'
+    create: yes
+    mode: '0644'
+  register: faillock_deny_update
+
+- name: "계정 잠금 유지 시간 설정 적용"
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^\s*unlock_time\s*='
+    line: 'unlock_time = {{ pam_unlock_time }}'
+    create: yes
+    mode: '0644'
+  register: faillock_unlock_update
+
+- name: "pam_faillock 시스템 커스텀 프로필 파일 생성"
+  ansible.builtin.copy:
+    dest: "{{ path_pam_faillock_conf | default('/usr/share/pam-configs/custom-faillock') }}"
+    owner: "{{ file_owner_root | default('root') }}"
+    group: "{{ file_group_root | default('root') }}"
+    mode: "{{ file_mode_644 | default('0644') }}"
+    content: |
+      Name: Custom Faillock Password Lockout Policy
+      Default: yes
+      Priority: 256
+      Auth-Type: Primary
+      Auth:
+          [default=die] pam_faillock.so authfail deny={{ pam_deny_count | default(5) }} unlock_time={{ pam_unlock_time | default(600) }}
+          sufficient pam_faillock.so authsucc deny={{ pam_deny_count | default(5) }} unlock_time={{ pam_unlock_time | default(600) }}
+
+- name: "우분투 PAM 프레임워크에 커스텀 faillock 정책 강제 적용"
+  ansible.builtin.command: pam-auth-update --enable custom-faillock --force
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  changed_when: false
+
+
+# [패스워드 복잡도 정책]
+- name: "패스워드 최소 길이 강제 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*minlen\s*='
+    line: "minlen = {{ pam_pwquality_minlen }}"
+    create: yes
+  register: pwq_minlen_update
+
+- name: "패스워드 내 소문자 최소 개수 포함 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*lcredit\s*='
+    line: "lcredit = {{ pam_pwquality_lcredit }}"
+    create: yes
+  register: pwq_lcredit_update
+
+- name: "패스워드 내 대문자 최소 개수 포함 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*ucredit\s*='
+    line: "ucredit = {{ pam_pwquality_ucredit }}"
+    create: yes
+  register: pwq_ucredit_update
+
+- name: "패스워드 내 숫자 최소 개수 포함 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*dcredit\s*='
+    line: "dcredit = {{ pam_pwquality_dcredit }}"
+    create: yes
+  register: pwq_dcredit_update
+
+- name: "패스워드 내 특수문자 최소 개수 포함 설정"
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^\s*ocredit\s*='
+    line: "ocredit = {{ pam_pwquality_ocredit }}"
+    create: yes
+  register: pwq_ocredit_update
+
+- name: "PAM 공통 패스워드 설정에 pwquality 연동 및 root 적용 강제"
+  ansible.builtin.lineinfile:
+    path: "{{ path_pam_password | default('/etc/pam.d/common-password') }}"
+    regexp: '^password\s+requisite\s+pam_pwquality.so'
+    line: "password requisite pam_pwquality.so enforce_for_root retry={{ pam_pwquality_retry }}"
+    state: present

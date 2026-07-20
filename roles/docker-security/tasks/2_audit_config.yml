@@ -1,0 +1,27 @@
+---
+# CHECK: auditd 패키지명과 Docker systemd/default 파일 경로를 대상 OS에서 확인하세요.
+
+- name: "DOCKER-04. Auditd 패키지 설치 확인"
+  ansible.builtin.package:
+    name: "{{ auditd_package_name }}"
+    state: present
+
+- name: "DOCKER-04. Docker 관련 파일/디렉터리 존재 여부 확인"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: docker_files_stat
+  loop: "{{ docker_audit_watch_paths }}"
+
+- name: "DOCKER-04. Docker 감사 규칙 추가 (/etc/audit/rules.d/audit.rules)"
+  ansible.builtin.lineinfile:
+    path: "{{ audit_rules_file }}"
+    create: true
+    line: "-w {{ item.item }} -p wa -k docker"
+    state: present
+    owner: root
+    group: root
+    mode: "{{ docker_audit_rules_file_mode }}"
+    backup: true
+  loop: "{{ docker_files_stat.results }}"
+  when: item.stat.exists
+  notify: Restart Auditd

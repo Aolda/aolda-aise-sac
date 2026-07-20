@@ -1,0 +1,39 @@
+---
+# CHECK: 기존 daemon.json이 있으면 docker_daemon_config에 병합할 설정을 먼저 반영하세요.
+
+- name: "Docker daemon.json 보안 옵션 병합 - 설정 디렉터리 확인"
+  ansible.builtin.file:
+    path: "{{ docker_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Docker daemon.json 보안 옵션 병합 - 기존 파일 확인"
+  ansible.builtin.stat:
+    path: "{{ docker_daemon_config_path }}"
+  register: docker_daemon_config_file
+
+- name: "Docker daemon.json 보안 옵션 병합 - 기존 내용 읽기"
+  ansible.builtin.slurp:
+    src: "{{ docker_daemon_config_path }}"
+  register: docker_daemon_config_raw
+  when: docker_daemon_config_file.stat.exists
+
+- name: "Docker daemon.json 보안 옵션 병합 - 기존 설정 파싱"
+  ansible.builtin.set_fact:
+    docker_existing_daemon_config: "{{ (docker_daemon_config_raw.content | b64decode | from_json) if docker_daemon_config_file.stat.exists else {} }}"
+
+- name: "Docker daemon.json 보안 옵션 병합 - 설정 병합"
+  ansible.builtin.set_fact:
+    docker_merged_daemon_config: "{{ docker_existing_daemon_config | combine(docker_daemon_config, recursive=True) }}"
+
+- name: "Docker daemon.json 보안 옵션 병합 - 명시 설정 적용"
+  ansible.builtin.copy:
+    dest: "{{ docker_daemon_config_path }}"
+    content: "{{ docker_merged_daemon_config | to_nice_json }}\n"
+    owner: root
+    group: root
+    mode: "{{ docker_daemon_config_mode }}"
+    backup: true
+  notify: Restart Docker

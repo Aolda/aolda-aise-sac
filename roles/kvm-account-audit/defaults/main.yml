@@ -1,0 +1,82 @@
+---
+# Safe defaults for Ubuntu 24.04 KVM security controls.
+
+security_action_mode: report
+
+enable_kvm_account_hardening: true
+kvm_allowed_users:
+  - root
+  - ansible
+  - kolla
+  - ceph
+  - nova
+  - libvirt-qemu
+kvm_retired_users: []
+kvm_account_action: report
+kvm_nologin_shell: /usr/sbin/nologin
+kvm_remove_home: false
+kvm_uid_min: 1000
+kvm_account_excluded_users:
+  - ansible
+  - kolla
+kvm_account_inactivity_threshold_days: 30
+kvm_account_restriction_threshold_days: 60
+kvm_account_target_groups:
+  - kvm
+  - qemu
+  - libvirt
+kvm_account_action_log_path: /var/log/kvm_account_audit_actions.log
+kvm_account_manual_script_enabled: true
+kvm_account_manual_script_dir: /tmp
+
+enable_kvm_session_timeout: true
+ssh_client_alive_interval: 300
+ssh_client_alive_count_max: 2
+apply_shell_timeout: true
+shell_timeout: 600
+sshd_security_config_path: /etc/ssh/sshd_config.d/99-security-baseline.conf
+shell_timeout_config_path: /etc/profile.d/security-timeout.sh
+
+enable_kvm_ip_restrict: false
+firewall_backend: ufw
+firewall_apply_mode: report
+allowed_management_cidrs:
+  - 10.0.0.0/24
+emergency_access_cidrs: []
+allowed_service_ports:
+  - port: 22
+    proto: tcp
+    source: management
+    description: SSH management access
+default_inbound_policy: deny
+enable_default_deny: false
+
+enable_kvm_default_bridge_disable: false
+kvm_libvirt_default_network_name: default
+kvm_disable_network_autostart: true
+kvm_destroy_active_network: false
+kvm_undefine_default_network: false
+kvm_default_bridge_action: report
+
+enable_kvm_log_backup: true
+kvm_log_paths:
+  - /var/log/libvirt/*.log
+  - /var/log/libvirt/qemu/*.log
+kvm_log_rotate_period: daily
+kvm_log_rotate_count: 30
+kvm_log_compress: true
+kvm_log_copytruncate: true
+kvm_log_backup_enabled: false
+kvm_log_backup_dest: /backup/kvm-logs
+kvm_logrotate_config_path: /etc/logrotate.d/libvirt-security
+
+enable_kvm_patch: false
+kvm_patch_mode: report
+kvm_patch_packages:
+  - qemu-system
+  - libvirt-daemon-system
+  - libvirt-clients
+kvm_target_package_versions: {}
+kvm_allow_reboot: false
+kvm_drain_compute_before_patch: true
+kvm_patch_batch_size: 1

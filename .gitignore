@@ -159,6 +159,9 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+# Ansible/Molecule local runtime data
+.ansible/
+
 # Pyre type checker
 .pyre/
 
@@ -205,3 +208,7 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# AI Sessions
+.codex/*
+.claude/*

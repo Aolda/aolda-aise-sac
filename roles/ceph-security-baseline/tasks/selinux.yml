@@ -1,0 +1,86 @@
+---
+- name: "Ceph SELinux 상태 조회"
+  ansible.builtin.command:
+    argv:
+      - sestatus
+  register: ceph_selinux_status
+  changed_when: false
+  failed_when: false
+  when: ceph_selinux_report_avc | bool or enable_ceph_selinux | bool
+  tags:
+    - ceph_selinux
+
+- name: "Ceph SELinux AVC 로그 조회"
+  ansible.builtin.command:
+    argv:
+      - ausearch
+      - -m
+      - avc
+      - -ts
+      - recent
+  register: ceph_selinux_avc
+  changed_when: false
+  failed_when: false
+  when: ceph_selinux_report_avc | bool
+  tags:
+    - ceph_selinux
+
+- name: "Ceph SELinux report"
+  ansible.builtin.debug:
+    msg:
+      - "enable_ceph_selinux={{ enable_ceph_selinux }}"
+      - "state={{ ceph_selinux_state }}"
+      - "policy={{ ceph_selinux_policy }}"
+      - "allow_reboot={{ ceph_selinux_allow_reboot }}"
+      - "{{ ceph_selinux_status.stdout_lines | default([]) }}"
+      - "{{ ceph_selinux_avc.stdout_lines | default([]) }}"
+  when: ceph_selinux_report_avc | bool or enable_ceph_selinux | bool
+  tags:
+    - ceph_selinux
+
+- name: "Ceph SELinux 패키지 설치"
+  ansible.builtin.apt:
+    name:
+      - selinux-basics
+      - selinux-policy-default
+      - auditd
+    state: present
+    update_cache: true
+  become: true
+  when:
+    - enable_ceph_selinux | bool
+    - ceph_selinux_install_packages | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - ceph_selinux
+
+- name: "Ceph SELinux 상태 설정"
+  ansible.builtin.command:
+    argv:
+      - setenforce
+      - "{{ '1' if ceph_selinux_state == 'enforcing' else '0' }}"
+  register: ceph_setenforce_result
+  changed_when: ceph_setenforce_result.rc == 0
+  failed_when:
+    - ceph_setenforce_result.rc != 0
+    - ceph_selinux_state != 'disabled'
+  become: true
+  when:
+    - enable_ceph_selinux | bool
+    - security_action_mode == 'enforce'
+    - ceph_selinux_state in ['permissive', 'enforcing']
+  tags:
+    - ceph_selinux
+
+- name: "Ceph SELinux 재부팅"
+  ansible.builtin.reboot:
+    msg: "Reboot triggered by Ceph SELinux policy"
+    reboot_timeout: 1800
+  become: true
+  when:
+    - enable_ceph_selinux | bool
+    - ceph_selinux_allow_reboot | bool
+    - security_action_mode == 'enforce'
+    - ceph_selinux_state != 'disabled'
+  tags:
+    - ceph_selinux

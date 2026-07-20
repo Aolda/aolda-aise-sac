@@ -1,0 +1,76 @@
+---
+- name: "Ceph 인증 설정 조회"
+  ansible.builtin.command:
+    argv:
+      - ceph
+      - config
+      - get
+      - mon
+      - "{{ item }}"
+  loop:
+    - auth_cluster_required
+    - auth_service_required
+    - auth_client_required
+  register: ceph_auth_current
+  changed_when: false
+  failed_when: false
+  when: enable_cephx_enforcement | bool or ceph_auth_report_only | bool
+  tags:
+    - ceph_auth
+
+- name: "CephX 인증 report"
+  ansible.builtin.debug:
+    msg:
+      - "enable_cephx_enforcement={{ enable_cephx_enforcement }}"
+      - "report_only={{ ceph_auth_report_only }}"
+      - "cluster={{ ceph_auth_cluster_required }}"
+      - "service={{ ceph_auth_service_required }}"
+      - "client={{ ceph_auth_client_required }}"
+      - "{{ ceph_auth_current.results | default([]) | map(attribute='stdout') | list }}"
+  when: enable_cephx_enforcement | bool or ceph_auth_report_only | bool
+  tags:
+    - ceph_auth
+
+- name: "CephX 인증 설정 적용"
+  ansible.builtin.command:
+    argv:
+      - ceph
+      - config
+      - set
+      - mon
+      - "{{ item.key }}"
+      - "{{ item.value }}"
+  loop:
+    - key: auth_cluster_required
+      value: "{{ ceph_auth_cluster_required }}"
+    - key: auth_service_required
+      value: "{{ ceph_auth_service_required }}"
+    - key: auth_client_required
+      value: "{{ ceph_auth_client_required }}"
+  register: ceph_auth_set_result
+  changed_when: ceph_auth_set_result.rc == 0
+  become: true
+  when:
+    - enable_cephx_enforcement | bool
+    - not ceph_auth_report_only | bool
+    - security_action_mode == 'enforce'
+  tags:
+    - ceph_auth
+
+- name: "Ceph client keyring 배포"
+  ansible.builtin.copy:
+    content: "{{ item.keyring_content }}"
+    dest: "{{ item.keyring }}"
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('ceph') }}"
+    mode: "{{ item.mode | default(ceph_service_keyring_mode) }}"
+  loop: "{{ ceph_clients }}"
+  become: true
+  when:
+    - enable_cephx_enforcement | bool
+    - ceph_deploy_keyrings | bool
+    - security_action_mode == 'enforce'
+    - item.keyring is defined
+    - item.keyring_content is defined
+  tags:
+    - ceph_auth

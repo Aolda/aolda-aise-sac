@@ -6,10 +6,12 @@ KISA 주요정보통신기반시설 기술적 취약점 분석·평가 가이드
 
 | 파일 | 구현 내용 |
 | --- | --- |
-| `tasks/account.yml` | OpenSSH 서버 및 필수 인증 모듈(`libpam-pwquality`)을 설치하고, root 원격 접속 제한, 패스워드 만료 주기(90일) 및 복잡도 규정을 적용합니다. 로그인 실패 시 계정 잠금(`pam_faillock`) 정책은 Ubuntu 표준 프레임워크(`pam-auth-update`)를 통해 안전하게 강제합니다. |
-| `tasks/file.yml` | 주요 설정 파일 권한(passwd, shadow 등)을 Ubuntu 권한 분리 메커니즘에 맞게 조율하고, TCP Wrapper 기반 접근 통제, SUID/SGID 속성 제거, 고아 파일 귀속, PATH 변수 내 위험 요소(`.`) 제거를 수행합니다. |
+| `tasks/main.yml` | 실행 계정의 root 권한 보유 여부를 사전 판정하고, 각 정책 영역 태스크 파일을 포함합니다. report 모드에서는 check_mode를 role 차원에서 강제합니다. |
+| `tasks/account.yml` | OpenSSH 서버 및 필수 인증 모듈(`libpam-pwquality`)을 설치하고, root 원격 접속 제한, 패스워드 만료 주기(90일) 및 복잡도 규정을 적용합니다. 로그인 실패 시 계정 잠금(`pam_faillock`) 정책은 Ubuntu 표준 프레임워크(`pam-auth-update`)를 통해 안전하게 강제하되, faillock 미적용 상태 또는 커스텀 프로필 변경 시에만 실행하여 반복 실행 시 멱등성을 보장합니다. |
+| `tasks/file.yml` | 주요 설정 파일 권한(passwd, shadow 등)을 Ubuntu 권한 분리 메커니즘에 맞게 조율하고, TCP Wrapper 기반 접근 통제, SUID/SGID 속성 제거, PATH 변수 내 위험 요소(`.`) 제거를 수행합니다. .rhosts 제거·World-writable 권한 회수·고아 파일 귀속·홈 환경 파일 권한은 [점검]/[조치] 분리 구조로 수행하며, root 권한 부재 시 `[검사 불가]`로 보고합니다. |
 | `tasks/service.yml` | 시스템 내 취약·레거시 패키지를 흔적 없이 완전 삭제(`purge`)하고, xinetd 및 독립형 불필요 데몬 중지/마스킹 처리를 수행하며 Anonymous FTP 접속을 차단합니다. |
-| `tasks/system.yml` | 불필요 NTP 데몬 박멸 후 `systemd-timesyncd`를 통한 자동 동기화를 활성화하며, rsyslog 및 스케줄러(cron) 권한 방어 및 최신 보안 패치를 일괄 적용합니다. |
+| `tasks/system.yml` | 불필요 NTP 데몬 박멸 후 `systemd-timesyncd`를 통한 자동 동기화를 활성화하며, rsyslog 및 스케줄러(cron) 권한 방어 및 최신 보안 패치를 일괄 적용합니다. systemd 환경·서비스 유닛 존재를 사전 판정하고, 유닛 부재 시 대체 시간 동기화 서비스를 판정해 `[검사 실패]`/`[검사 불가]`로 명확하게 보고합니다. timesyncd를 같은 실행에서 신규 설치한 경우 systemd-timedated를 재기동하여 `timedatectl set-ntp` 실패("NTP not supported")를 방지합니다. |
+| `handlers/main.yml` | ssh, xinetd, timesyncd, rsyslog 재시작 핸들러. report 모드에서는 check_mode로 재시작을 시뮬레이션만 합니다. |
 
 ## 적용이 필요한 이유
 
@@ -21,11 +23,11 @@ KISA 주요정보통신기반시설 기술적 취약점 분석·평가 가이드
 ## 적용 시 변경점
 
 * 미니멀 환경 대비 `package_netbase`, `package_ssh_server`, 패스워드 복잡도 검증을 위한 `libpam-pwquality` 패키지가 사전 점검 후 설치되며, 격리용 `path_sshd_run_dir` 디렉터리가 생성됩니다.
-* 로그인 5회 실패 시 계정이 600초간 잠기도록 제어되며, PAM 인증 사슬 붕괴를 막기 위해 텍스트 강제 주입 대신 `/usr/share/pam-configs/custom-faillock` 커스텀 프로필이 생성되어 시스템에 적용됩니다.
+* 로그인 5회 실패 시 계정이 600초간 잠기도록 제어되며, PAM 인증 사슬 붕괴를 막기 위해 텍스트 강제 주입 대신 `/usr/share/pam-configs/custom-faillock` 커스텀 프로필이 생성되어 시스템에 적용됩니다. `pam-auth-update`는 faillock 미적용 또는 프로필 변경 시에만 실행되어 `enforce_for_root` 설정이 반복 실행에서 원복되지 않습니다.
 * `/etc/shadow` 권한이 우분투 내부 인증 도우미(`unix_chkpwd`) 호환성을 위해 `0640` 및 `shadow` 그룹으로 조율되어, 로컬 인증 기능은 보존하면서 외부로의 해시 유출을 방어합니다.
 * `hosts.deny`에 `ALL: ALL`이 주입되어 화이트리스트 IP 외의 SSH 접근이 원천 차단됩니다.
 * 취약 패키지들이 설정 파일까지 완전히 제거(`purge`)되며, `nfs-server` 등은 수동 구동도 차단되도록 마스킹(`masked`) 처리됩니다.
-* 시간 동기화 오탐 유발 데몬(ntp, chrony)이 완전 삭제되며, 클라우드 최소 이미지 환경을 고려하여 systemd-timesyncd 패키지의 명시적 설치 및 커널 단위의 자동 동기화(set-ntp true)가 강제 적용됩니다.
+* 시간 동기화 오탐 유발 데몬(ntp, chrony)이 완전 삭제되며, 클라우드 최소 이미지 환경을 고려하여 systemd-timesyncd 패키지의 명시적 설치 및 커널 단위의 자동 동기화(set-ntp true)가 강제 적용됩니다. 신규 설치 직후에는 systemd-timedated를 재기동해 새 NTP 유닛을 인식시킵니다.
 * `/etc/crontab` 권한이 `0640`으로 조율되고, 새로 생성된 `/etc/cron.allow` 화이트리스트에 의해 명시된 사용자(root)만 예약 작업을 수행할 수 있도록 제한됩니다.
 * 물리 디스크(ext4, xfs)만을 정밀 타겟팅하여 가상 파일 시스템 오탐 없이 World-writable 취약점을 제거합니다.
 
@@ -35,7 +37,7 @@ KISA 주요정보통신기반시설 기술적 취약점 분석·평가 가이드
 
 | 변수 | 기본값 | 설명 |
 | --- | --- | --- |
-| `sshd_permit_root_login` | `yes` | SSH 원격 접속 시 패스워드 인증을 허용(yes)할지, Key 파일(.pem) 기반 인증만 허용(no)할지 결정합니다. |
+| `sshd_password_authentication` | `yes` | SSH 원격 접속 시 패스워드 인증을 허용(yes)할지, Key 파일(.pem) 기반 인증만 허용(no)할지 결정합니다. |
 | `sshd_permit_root_login` | `no` | SSH 서비스를 통한 root 계정의 직접 원격 로그인 허용 여부입니다. |
 | `os_pass_max_days` | `90` | `/etc/login.defs`에 반영될 패스워드 최대 사용 유효 기간(일)입니다. |
 | `pam_pwquality_retry` | `3` | 패스워드 변경 시 입력 레이아웃 최대 재시도 횟수입니다. |
@@ -91,3 +93,9 @@ KISA 주요정보통신기반시설 기술적 취약점 분석·평가 가이드
 | `path_proftpd_conf` | `/etc/proftpd/proftpd.conf` | 익명 인증 우회를 차단하기 위해 수정할 proftpd 메인 설정 파일 경로입니다. |
 | `path_pam_faillock_conf` | `/usr/share/pam-configs/custom-faillock` | 인증 사슬 붕괴를 방지하고 안전하게 faillock 정책을 주입할 Ubuntu 표준 PAM 커스텀 프로필 경로입니다. |
 | `path_sshd_config` 외 | `/etc/ssh/sshd_config` 등 | 각 태스크 파일 내에서 멱등성 주입 대상을 정밀 지정하기 위한 시스템 핵심 설정 파일들의 경로 매핑 변수군입니다. |
+
+### 5. 실행 모드 변수
+
+| 변수 | 기본값 | 설명 |
+| --- | --- | --- |
+| `apply_policy` | `false` | 조치 자동적용 여부입니다. `false`(report)는 점검 및 보고서 생성만 수행하고 시스템을 변경하지 않으며, `true`(apply)일 때만 실제 조치가 적용됩니다. |

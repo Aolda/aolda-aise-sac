@@ -1,4 +1,15 @@
 ---
+
+- name: "실행 계정 UID 확인 (권한 필요 항목 검사 가능 여부 판정용)"
+  ansible.builtin.command: id -u
+  register: os_security_uid_check
+  changed_when: false
+  check_mode: false
+
+- name: "root 권한 보유 여부 판정"
+  ansible.builtin.set_fact:
+    os_security_privileged: "{{ os_security_uid_check.stdout | trim == '0' }}"
+
 - name: "OS 보안 설정 조치"
   block:
     - name: "[OS 파트] 1. 계정 및 인증 통제 영역"

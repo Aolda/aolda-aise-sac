@@ -4,19 +4,23 @@
   ansible.builtin.service:
     name: ssh
     state: restarted
+  check_mode: "{{ not (apply_policy | bool) }}"
 
 - name: restart xinetd
   ansible.builtin.service:
     name: xinetd
     state: restarted
+  check_mode: "{{ not (apply_policy | bool) }}"
   ignore_errors: yes
 
 - name: restart timesyncd
   ansible.builtin.service:
     name: "{{ service_timesyncd | default('systemd-timesyncd') }}"
     state: restarted
+  check_mode: "{{ not (apply_policy | bool) }}"
 
 - name: restart rsyslog
   ansible.builtin.service:
     name: rsyslog
     state: restarted
+  check_mode: "{{ not (apply_policy | bool) }}"

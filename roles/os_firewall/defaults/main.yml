@@ -1,0 +1,18 @@
+---
+apply_policy: false
+network_security_mode: "{{ 'harden' if apply_policy | bool else 'audit' }}"
+
+os_firewall_report_enabled: true
+os_firewall_report_dir: "/tmp/aise_reports"
+
+os_firewall_icmp_echo_request_limit: 5/second
+os_firewall_icmp_echo_request_burst: 10
+os_firewall_apply_fragment_drop: true
+os_firewall_allowlist_enabled: false
+os_firewall_default_drop_enabled: false
+os_firewall_default_drop_confirmed: false
+os_firewall_drop_logging_enabled: false
+os_firewall_allowed_tcp_ports: []
+os_firewall_allowed_udp_ports: []
+os_firewall_allowed_source_cidrs: []
+os_firewall_drop_log_prefix: AISE_DROP

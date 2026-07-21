@@ -1,0 +1,102 @@
+{# ── Variable setup ── #}
+{% set p1_ok = (os_firewall_icmp_accept_check.rc | default(1)) == 0 %}
+{% set p2_ok = (os_firewall_icmp_drop_check.rc | default(1)) == 0 %}
+{% set p3_active = os_firewall_apply_fragment_drop | bool %}
+{% set p3_ok = (os_firewall_fragment_drop_check.rc | default(1)) == 0 %}
+{% set p4_active = os_firewall_allowlist_enabled | bool and (os_firewall_allowed_source_cidrs | length > 0) and (os_firewall_allowed_tcp_ports | length > 0) %}
+{% set p5_active = os_firewall_allowlist_enabled | bool and (os_firewall_allowed_source_cidrs | length > 0) and (os_firewall_allowed_udp_ports | length > 0) %}
+{% set p6_active = os_firewall_drop_logging_enabled | bool %}
+{% set p7_active = os_firewall_default_drop_enabled | bool and os_firewall_default_drop_confirmed | bool %}
+
+{% set total = 7 %}
+
+# [Aolda 인프라 통합 보안조치 결과 보고서] - Network
+
+## 1. 보고서 개요
+
+### 가. 보안조치 기본정보
+
+| 항목 | 내용 |
+|-|-|
+| 실행 시작시간 | {{ now(utc=True).strftime('%Y-%m-%d %H:%M:%S UTC') }} |
+| 실행 종료시간 | {{ now(utc=True).strftime('%Y-%m-%d %H:%M:%S UTC') }} |
+| 조치 자동적용 여부 | {{ apply_policy | bool | lower }} |
+| 실행 대상 | {{ inventory_hostname }} |
+| 인벤토리 | {{ inventory_file | default('N/A') }} |
+| 실행 사용자 | {{ ansible_user | default('N/A') }} |
+| 대상 OS | {{ ansible_distribution | default('N/A') }} |
+| Ansible playbook | {{ ansible_playbook | default('N/A') }} |
+| 실행 role 목록 | os_firewall |
+| 보고서 파일명 | REPORT.{{ now(utc=True).strftime('%Y%m%d_%H%M%S') }}.md |
+
+### 나. 보안조치 통계
+
+{% if apply_policy | bool %}
+{% set p1_changed = os_firewall_icmp_accept_result.changed | default(false) %}
+{% set p1_failed  = os_firewall_icmp_accept_result.failed  | default(false) %}
+{% set p2_changed = os_firewall_icmp_drop_result.changed | default(false) %}
+{% set p2_failed  = os_firewall_icmp_drop_result.failed  | default(false) %}
+{% set p3_changed = os_firewall_fragment_drop_result.changed | default(false) %}
+{% set p3_failed  = os_firewall_fragment_drop_result.failed  | default(false) %}
+{% set p4_changed = (os_firewall_allowlist_tcp_result.results | default([]) | selectattr('changed', 'equalto', true) | list | length) > 0 %}
+{% set p4_failed  = (os_firewall_allowlist_tcp_result.results | default([]) | selectattr('failed',  'equalto', true) | list | length) > 0 %}
+{% set p5_changed = (os_firewall_allowlist_udp_result.results | default([]) | selectattr('changed', 'equalto', true) | list | length) > 0 %}
+{% set p5_failed  = (os_firewall_allowlist_udp_result.results | default([]) | selectattr('failed',  'equalto', true) | list | length) > 0 %}
+{% set p6_changed = os_firewall_drop_logging_result.changed | default(false) %}
+{% set p6_failed  = os_firewall_drop_logging_result.failed  | default(false) %}
+{% set p7_changed = os_firewall_default_drop_result.changed | default(false) %}
+{% set p7_failed  = os_firewall_default_drop_result.failed  | default(false) %}
+
+{% set changed_count = [p1_changed|int, p2_changed|int, p3_changed|int, p4_changed|int, p5_changed|int, p6_changed|int, p7_changed|int] | sum %}
+{% set failed_count  = [p1_failed|int,  p2_failed|int,  p3_failed|int,  p4_failed|int,  p5_failed|int,  p6_failed|int,  p7_failed|int]  | sum %}
+{% set already_ok    = total - changed_count %}
+
+|총 검사 정책 수|조치 완료 정책 수|조치 필요 정책 수|조치 성공 정책 수|조치 실패 정책 수|
+|-|-|-|-|-|
+|{{ total }}|{{ already_ok }}|{{ changed_count }}|{{ changed_count - failed_count }}|{{ failed_count }}|
+
+{% else %}
+{% set need_icmp_accept  = not p1_ok %}
+{% set need_icmp_drop    = not p2_ok %}
+{% set need_frag         = p3_active and not p3_ok %}
+{% set need_tcp_list     = p4_active %}
+{% set need_udp_list     = p5_active %}
+{% set need_drop_log     = p6_active %}
+{% set need_default_drop = p7_active %}
+
+{% set action_needed = [need_icmp_accept|int, need_icmp_drop|int, need_frag|int, need_tcp_list|int, need_udp_list|int, need_drop_log|int, need_default_drop|int] | sum %}
+{% set already_ok = total - action_needed %}
+
+|총 검사 정책 수|조치 완료 정책 수|조치 필요 정책 수|
+|-|-|-|
+|{{ total }}|{{ already_ok }}|{{ action_needed }}|
+
+{% endif %}
+
+---
+
+## 2. 정책 별 세부현황
+
+### 가. os_firewall
+
+| 조치항목 이름 | 조치 대상여부 | 정책 적용결과 |
+|-|-|-|
+| ICMP rate limit allow | true | {% if not apply_policy | bool %}false{% elif (p1_ok or p1_changed) and not p1_failed %}true{% else %}false{% endif %} |
+| ICMP over-limit drop | true | {% if not apply_policy | bool %}false{% elif (p2_ok or p2_changed) and not p2_failed %}true{% else %}false{% endif %} |
+| Fragment packet drop | {{ p3_active | lower }} | {% if not apply_policy | bool or not p3_active %}false{% elif (p3_ok or p3_changed) and not p3_failed %}true{% else %}false{% endif %} |
+| TCP allowlist | {{ p4_active | lower }} | {% if not apply_policy | bool or not p4_active %}false{% elif p4_changed and not p4_failed %}true{% else %}false{% endif %} |
+| UDP allowlist | {{ p5_active | lower }} | {% if not apply_policy | bool or not p5_active %}false{% elif p5_changed and not p5_failed %}true{% else %}false{% endif %} |
+| Drop logging | {{ p6_active | lower }} | {% if not apply_policy | bool or not p6_active %}false{% elif p6_changed and not p6_failed %}true{% else %}false{% endif %} |
+| Default input drop | {{ p7_active | lower }} | {% if not apply_policy | bool or not p7_active %}false{% elif p7_changed and not p7_failed %}true{% else %}false{% endif %} |
+
+---
+
+### 현재 iptables 상태
+
+```
+{{ os_firewall_iptables_state.stdout | default('(수집 불가)') }}
+```
+
+---
+
+*Generated by aolda-aise-sac os_firewall role*

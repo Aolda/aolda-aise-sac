@@ -1,0 +1,213 @@
+---
+- name: Validate network security mode for os firewall
+  ansible.builtin.assert:
+    that:
+      - network_security_mode in ["audit", "harden"]
+    fail_msg: "network_security_mode must be either 'audit' or 'harden'."
+
+- name: Collect current iptables rules
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -S
+  register: os_firewall_iptables_state
+  changed_when: false
+  failed_when: false
+
+- name: Show current iptables rules in audit mode
+  ansible.builtin.debug:
+    var: os_firewall_iptables_state.stdout_lines
+  when: network_security_mode == "audit"
+
+- name: Check rate-limited ICMP echo-request allow rule
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -C
+      - INPUT
+      - -p
+      - icmp
+      - --icmp-type
+      - echo-request
+      - -m
+      - limit
+      - --limit
+      - "{{ os_firewall_icmp_echo_request_limit }}"
+      - --limit-burst
+      - "{{ os_firewall_icmp_echo_request_burst | string }}"
+      - -j
+      - ACCEPT
+  register: os_firewall_icmp_accept_check
+  changed_when: false
+  failed_when: false
+
+- name: Apply rate-limited ICMP echo-request allow rule
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -I
+      - INPUT
+      - "1"
+      - -p
+      - icmp
+      - --icmp-type
+      - echo-request
+      - -m
+      - limit
+      - --limit
+      - "{{ os_firewall_icmp_echo_request_limit }}"
+      - --limit-burst
+      - "{{ os_firewall_icmp_echo_request_burst | string }}"
+      - -j
+      - ACCEPT
+  register: os_firewall_icmp_accept_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
+    - os_firewall_icmp_accept_check.rc != 0
+
+- name: Check ICMP echo-request drop rule
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -C
+      - INPUT
+      - -p
+      - icmp
+      - --icmp-type
+      - echo-request
+      - -j
+      - DROP
+  register: os_firewall_icmp_drop_check
+  changed_when: false
+  failed_when: false
+
+- name: Apply ICMP echo-request drop rule for traffic over limit
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -I
+      - INPUT
+      - "2"
+      - -p
+      - icmp
+      - --icmp-type
+      - echo-request
+      - -j
+      - DROP
+  register: os_firewall_icmp_drop_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
+    - os_firewall_icmp_drop_check.rc != 0
+
+- name: Check fragment packet drop rule
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -C
+      - INPUT
+      - -f
+      - -j
+      - DROP
+  register: os_firewall_fragment_drop_check
+  changed_when: false
+  failed_when: false
+  when: os_firewall_apply_fragment_drop
+
+- name: Apply fragment packet drop rule
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -I
+      - INPUT
+      - "1"
+      - -f
+      - -j
+      - DROP
+  register: os_firewall_fragment_drop_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
+    - os_firewall_apply_fragment_drop
+    - os_firewall_fragment_drop_check.rc != 0
+
+- name: Apply allowlist scaffold for TCP ports from allowed source CIDRs
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -A
+      - INPUT
+      - -p
+      - tcp
+      - -s
+      - "{{ item.0 }}"
+      - --dport
+      - "{{ item.1 | string }}"
+      - -j
+      - ACCEPT
+  loop: "{{ os_firewall_allowed_source_cidrs | product(os_firewall_allowed_tcp_ports) | list }}"
+  register: os_firewall_allowlist_tcp_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
+    - os_firewall_allowlist_enabled
+    - os_firewall_allowed_source_cidrs | length > 0
+    - os_firewall_allowed_tcp_ports | length > 0
+
+- name: Apply allowlist scaffold for UDP ports from allowed source CIDRs
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -A
+      - INPUT
+      - -p
+      - udp
+      - -s
+      - "{{ item.0 }}"
+      - --dport
+      - "{{ item.1 | string }}"
+      - -j
+      - ACCEPT
+  loop: "{{ os_firewall_allowed_source_cidrs | product(os_firewall_allowed_udp_ports) | list }}"
+  register: os_firewall_allowlist_udp_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
+    - os_firewall_allowlist_enabled
+    - os_firewall_allowed_source_cidrs | length > 0
+    - os_firewall_allowed_udp_ports | length > 0
+
+- name: Apply input drop logging scaffold
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -A
+      - INPUT
+      - -j
+      - LOG
+      - --log-prefix
+      - "{{ os_firewall_drop_log_prefix }} "
+  register: os_firewall_drop_logging_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
+    - os_firewall_drop_logging_enabled
+
+- name: Apply default input drop scaffold
+  ansible.builtin.command:
+    argv:
+      - iptables
+      - -P
+      - INPUT
+      - DROP
+  register: os_firewall_default_drop_result
+  when:
+    - apply_policy | bool
+    - network_security_mode == "harden"
+    - os_firewall_default_drop_enabled | bool
+    - os_firewall_default_drop_confirmed | bool
+
+- name: Generate os_firewall security report
+  ansible.builtin.include_tasks: report.yml
+  when: os_firewall_report_enabled | bool

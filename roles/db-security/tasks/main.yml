@@ -1,4 +1,23 @@
 ---
+- name: "DB 실행 모드 및 접속 방식 검증"
+  ansible.builtin.assert:
+    that:
+      - db_effective_action_mode in ['report', 'apply']
+    fail_msg: >-
+      Invalid DB mode. security_action_mode/apply_policy must resolve to
+      report or apply.
+  vars:
+    db_effective_action_mode: "{{ security_action_mode | default((apply_policy | default(false) | bool) | ternary('apply', 'report')) }}"
+
+- name: "DB 공통 실행 상태 설정"
+  ansible.builtin.set_fact:
+    db_effective_action_mode: "{{ security_action_mode | default((apply_policy | default(false) | bool) | ternary('apply', 'report')) }}"
+    db_changes_allowed: >-
+      {{
+        (security_action_mode | default((apply_policy | default(false) | bool) | ternary('apply', 'report'))) == 'apply'
+        and not ansible_check_mode
+      }}
+
 - name: "DB 서버 버전 및 종류 확인 task 포함"
   ansible.builtin.include_tasks: 0_detect_version.yml
 
@@ -16,4 +35,6 @@
 
 - name: "DB 보안 설정 검증 task 포함"
   ansible.builtin.include_tasks: validate.yml
-  when: db_validate_after_apply | bool
+  when:
+    - db_validate_after_apply | bool
+    - db_changes_allowed | bool

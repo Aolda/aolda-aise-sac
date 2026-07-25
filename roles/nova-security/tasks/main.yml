@@ -61,4 +61,6 @@
 
 - name: "2-5. Nova 적용 후 검증"
   ansible.builtin.import_tasks: validate.yml
-  when: nova_security_validate_after_apply | bool
+  when:
+    - nova_security_validate_after_apply | bool
+    - not ansible_check_mode

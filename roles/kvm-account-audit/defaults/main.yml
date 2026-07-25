@@ -52,6 +52,9 @@ default_inbound_policy: deny
 enable_default_deny: false
 
 enable_kvm_default_bridge_disable: false
+kvm_libvirt_backend: auto
+kvm_libvirt_container_runtime: docker
+kvm_libvirt_container_name: nova_libvirt
 kvm_libvirt_default_network_name: default
 kvm_disable_network_autostart: true
 kvm_destroy_active_network: false

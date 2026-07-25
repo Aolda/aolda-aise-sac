@@ -11,7 +11,7 @@ KVM 하이퍼바이저 호스트의 미사용 계정 점검, 세션 타임아웃
 | `tasks/accounts.yml` | KVM 관련 그룹의 미사용 계정과 명시적 퇴직 계정을 조회하고, 필요 시 수동 잠금 스크립트를 생성합니다. `enforce` 모드와 `kvm_account_action: lock` 설정 시 제한 기준을 넘은 계정을 잠금 처리합니다. 실행 결과 보고서는 공통 `security_report` callback이 생성합니다. |
 | `tasks/session_timeout.yml` | SSH `ClientAliveInterval`, `ClientAliveCountMax` 설정과 shell `TMOUT` 설정을 배포합니다. |
 | `tasks/ip_restrict.yml` | UFW 기반으로 관리망/비상 접근 CIDR의 서비스 포트를 허용하고, 선택적으로 기본 inbound 정책을 적용합니다. |
-| `tasks/default_bridge.yml` | libvirt 기본 네트워크의 autostart 해제, active network 중지, network 정의 삭제를 선택적으로 수행합니다. |
+| `tasks/default_bridge.yml` | 호스트 또는 Kolla `nova_libvirt` 컨테이너의 libvirt 연결을 감지하고, 기본 네트워크의 autostart 해제, active network 중지, network 정의 삭제를 선택적으로 수행합니다. |
 | `tasks/log_backup.yml` | libvirt 로그에 대한 logrotate 설정을 배포하고, 옵션에 따라 별도 백업 디렉터리에 로그를 복사합니다. |
 | `tasks/patch.yml` | KVM 관련 패키지의 설치 가능 버전을 조회하고, `security_only`, `latest`, `specific_version` 모드에 따라 패키지를 갱신합니다. 필요 시 재부팅을 수행합니다. |
 
@@ -73,6 +73,9 @@ KVM 하이퍼바이저 호스트의 미사용 계정 점검, 세션 타임아웃
 | `default_inbound_policy` | `deny` | UFW 기본 inbound 정책 값입니다. |
 | `enable_default_deny` | `false` | UFW 기본 inbound 정책 적용 여부입니다. |
 | `enable_kvm_default_bridge_disable` | `false` | libvirt default network 제한 정책 사용 여부입니다. |
+| `kvm_libvirt_backend` | `auto` | libvirt 명령 실행 위치입니다. `auto`는 호스트 연결을 우선 확인하고 실패하면 Kolla 컨테이너를 사용하며, `host`와 `kolla`로 명시할 수 있습니다. |
+| `kvm_libvirt_container_runtime` | `docker` | Kolla `nova_libvirt` 컨테이너 실행에 사용할 runtime 명령입니다. |
+| `kvm_libvirt_container_name` | `nova_libvirt` | libvirt가 실행 중인 Kolla 컨테이너 이름입니다. |
 | `kvm_libvirt_default_network_name` | `default` | 제어할 libvirt network 이름입니다. |
 | `kvm_disable_network_autostart` | `true` | default network autostart 해제 여부입니다. |
 | `kvm_destroy_active_network` | `false` | active 상태의 default network 중지 여부입니다. |

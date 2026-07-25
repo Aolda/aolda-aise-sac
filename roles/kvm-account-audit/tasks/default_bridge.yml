@@ -1,14 +1,111 @@
 ---
-- name: "KVM libvirt default network 상태 조회"
+- name: "KVM libvirt 실행 backend 설정 검증"
+  ansible.builtin.assert:
+    that:
+      - kvm_libvirt_backend in ['auto', 'host', 'kolla']
+      - kvm_libvirt_backend == 'host' or kvm_libvirt_container_runtime | length > 0
+      - kvm_libvirt_backend == 'host' or kvm_libvirt_container_name | length > 0
+    fail_msg: >-
+      kvm_libvirt_backend는 auto, host, kolla 중 하나여야 하며,
+      컨테이너 runtime과 이름은 비어 있지 않아야 합니다.
+  when: enable_kvm_default_bridge_disable | bool
+  tags:
+    - kvm_default_bridge
+
+- name: "호스트 libvirt 연결 가능 여부 확인"
   ansible.builtin.command:
     argv:
       - virsh
-      - net-info
-      - "{{ kvm_libvirt_default_network_name }}"
-  register: kvm_default_network_info
+      - uri
+  register: kvm_host_libvirt_probe
   changed_when: false
   failed_when: false
+  check_mode: false
   become: true
+  when:
+    - enable_kvm_default_bridge_disable | bool
+    - kvm_libvirt_backend in ['auto', 'host']
+  tags:
+    - kvm_default_bridge
+
+- name: "Kolla nova_libvirt 컨테이너 연결 가능 여부 확인"
+  ansible.builtin.command:
+    argv:
+      - "{{ kvm_libvirt_container_runtime }}"
+      - exec
+      - "{{ kvm_libvirt_container_name }}"
+      - virsh
+      - uri
+  register: kvm_kolla_libvirt_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: true
+  when:
+    - enable_kvm_default_bridge_disable | bool
+    - >-
+      kvm_libvirt_backend == 'kolla' or
+      (kvm_libvirt_backend == 'auto' and
+      ((kvm_host_libvirt_probe | default({})).rc | default(1)) != 0)
+  tags:
+    - kvm_default_bridge
+
+- name: "KVM libvirt 실행 backend 결정"
+  ansible.builtin.set_fact:
+    kvm_libvirt_resolved_backend: >-
+      {{
+        'host'
+        if kvm_libvirt_backend in ['auto', 'host'] and
+           ((kvm_host_libvirt_probe | default({})).rc | default(1)) == 0
+        else 'kolla'
+        if kvm_libvirt_backend in ['auto', 'kolla'] and
+           ((kvm_kolla_libvirt_probe | default({})).rc | default(1)) == 0
+        else ''
+      }}
+  when: enable_kvm_default_bridge_disable | bool
+  tags:
+    - kvm_default_bridge
+
+- name: "KVM libvirt 검사 가능 여부 검증"
+  ansible.builtin.assert:
+    that:
+      - kvm_libvirt_resolved_backend | length > 0
+    fail_msg: >-
+      libvirt에 연결할 수 없어 default network를 검사할 수 없습니다.
+      요청 backend={{ kvm_libvirt_backend }},
+      host 오류={{ (kvm_host_libvirt_probe | default({})).stderr | default('미실행', true) }},
+      Kolla 오류={{ (kvm_kolla_libvirt_probe | default({})).stderr | default('미실행', true) }}.
+  when: enable_kvm_default_bridge_disable | bool
+  tags:
+    - kvm_default_bridge
+
+- name: "KVM libvirt 명령 prefix 구성"
+  ansible.builtin.set_fact:
+    kvm_libvirt_command_prefix: >-
+      {{
+        ['virsh']
+        if kvm_libvirt_resolved_backend == 'host'
+        else [kvm_libvirt_container_runtime, 'exec', kvm_libvirt_container_name, 'virsh']
+      }}
+  when: enable_kvm_default_bridge_disable | bool
+  tags:
+    - kvm_default_bridge
+
+- name: "KVM libvirt network 목록 조회"
+  ansible.builtin.command:
+    argv: "{{ kvm_libvirt_command_prefix + ['net-list', '--all', '--name'] }}"
+  register: kvm_libvirt_network_list
+  changed_when: false
+  check_mode: false
+  become: true
+  when: enable_kvm_default_bridge_disable | bool
+  tags:
+    - kvm_default_bridge
+
+- name: "KVM default network 존재 여부 판정"
+  ansible.builtin.set_fact:
+    kvm_default_network_exists: >-
+      {{ kvm_libvirt_default_network_name in (kvm_libvirt_network_list.stdout_lines | default([])) }}
   when: enable_kvm_default_bridge_disable | bool
   tags:
     - kvm_default_bridge
@@ -16,21 +113,20 @@
 - name: "KVM default bridge report"
   ansible.builtin.debug:
     msg:
+      - "backend={{ kvm_libvirt_resolved_backend }}"
       - "network={{ kvm_libvirt_default_network_name }}"
       - "action={{ kvm_default_bridge_action }}"
-      - "exists={{ kvm_default_network_info.rc | default(1) == 0 }}"
-      - "{{ kvm_default_network_info.stdout_lines | default([]) }}"
+      - "exists={{ kvm_default_network_exists | bool }}"
+      - "{{ kvm_libvirt_network_list.stdout_lines | default([]) }}"
   when: enable_kvm_default_bridge_disable | bool
   tags:
     - kvm_default_bridge
 
 - name: "KVM default network autostart 해제"
   ansible.builtin.command:
-    argv:
-      - virsh
-      - net-autostart
-      - "{{ kvm_libvirt_default_network_name }}"
-      - --disable
+    argv: >-
+      {{ kvm_libvirt_command_prefix +
+         ['net-autostart', kvm_libvirt_default_network_name, '--disable'] }}
   register: kvm_default_bridge_autostart
   changed_when: "'unmarked as autostarted' in kvm_default_bridge_autostart.stdout"
   become: true
@@ -39,16 +135,15 @@
     - security_action_mode == 'enforce'
     - kvm_disable_network_autostart | bool
     - kvm_default_bridge_action in ['disable', 'destroy', 'undefine']
-    - kvm_default_network_info.rc == 0
+    - kvm_default_network_exists | bool
   tags:
     - kvm_default_bridge
 
 - name: "KVM default network 중지"
   ansible.builtin.command:
-    argv:
-      - virsh
-      - net-destroy
-      - "{{ kvm_libvirt_default_network_name }}"
+    argv: >-
+      {{ kvm_libvirt_command_prefix +
+         ['net-destroy', kvm_libvirt_default_network_name] }}
   register: kvm_default_bridge_destroy
   changed_when: "'destroyed' in kvm_default_bridge_destroy.stdout"
   failed_when:
@@ -60,16 +155,15 @@
     - security_action_mode == 'enforce'
     - kvm_destroy_active_network | bool
     - kvm_default_bridge_action in ['destroy', 'undefine']
-    - kvm_default_network_info.rc == 0
+    - kvm_default_network_exists | bool
   tags:
     - kvm_default_bridge
 
 - name: "KVM default network 정의 삭제"
   ansible.builtin.command:
-    argv:
-      - virsh
-      - net-undefine
-      - "{{ kvm_libvirt_default_network_name }}"
+    argv: >-
+      {{ kvm_libvirt_command_prefix +
+         ['net-undefine', kvm_libvirt_default_network_name] }}
   register: kvm_default_bridge_undefine
   changed_when: "'undefined' in kvm_default_bridge_undefine.stdout"
   become: true
@@ -78,6 +172,6 @@
     - security_action_mode == 'enforce'
     - kvm_undefine_default_network | bool
     - kvm_default_bridge_action == 'undefine'
-    - kvm_default_network_info.rc == 0
+    - kvm_default_network_exists | bool
   tags:
     - kvm_default_bridge

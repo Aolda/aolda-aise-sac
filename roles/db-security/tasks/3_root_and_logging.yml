@@ -9,7 +9,9 @@
     insertafter: '\[mysqld\]'
     state: present
     backup: true
-  when: db_enforce_runtime_user | bool
+  when:
+    - db_changes_allowed | bool
+    - db_enforce_runtime_user | bool
   notify: Restart DB Service
 
 - name: "1-1-1. DB 구동 계정 자동 변경 제외 안내"
@@ -26,6 +28,7 @@
     owner: root
     group: "{{ db_runtime_group }}"
     mode: "{{ db_max_config_file_mode }}"
+  when: db_changes_allowed | bool
 
 - name: "3-1. 로그 저장 디렉터리 생성 및 권한 설정"
   ansible.builtin.file:
@@ -34,6 +37,7 @@
     owner: "{{ db_runtime_user }}"
     group: "{{ db_runtime_group }}"
     mode: '0750'
+  when: db_changes_allowed | bool
 
 - name: "3-2. Slow Query Log 활성화 설정 추가"
   ansible.builtin.blockinfile:
@@ -46,6 +50,7 @@
       slow_query_log_file = {{ db_slow_query_log_file }}
       long_query_time = {{ db_long_query_time }}
       log_error = {{ db_error_log_file }}
+  when: db_changes_allowed | bool
   notify: Restart DB Service
 
 - name: "3-3. General Log 강제 활성화 제외 안내"

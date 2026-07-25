@@ -4,6 +4,7 @@
     login_unix_socket: "{{ db_login_unix_socket }}"
     query: "SELECT @@VERSION AS version, @@VERSION_COMMENT AS version_comment"
   register: db_server_version_query
+  check_mode: false
   changed_when: false
   failed_when: db_server_version_query.failed | default(false)
 

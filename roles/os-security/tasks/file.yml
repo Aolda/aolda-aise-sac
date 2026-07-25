@@ -1,182 +1,252 @@
 ---
 # 주요 설정 파일 및 디렉터리 권한 통제 영역
 
-- name: "netbase 패키 설치 여부 사전 점검"
-  ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "{{ package_netbase }}"
-  register: netbase_check
-  failed_when: false
-  changed_when: false
+- name: "주요 설정 파일 및 디렉터리 권한 통제 정책 일괄 처리"
+  block:
+    - name: "netbase 패키 설치 여부 사전 점검"
+      ansible.builtin.shell: dpkg -l | grep -E "^ii" | grep -q "{{ package_netbase }}"
+      register: netbase_check
+      failed_when: false
+      changed_when: false
+      check_mode: false
 
-- name: "netbase 패키지가 없을 경우에만 설치 진행"
-  ansible.builtin.apt:
-    name: "{{ package_netbase }}"
-    state: present
-    update_cache: yes
-  when: netbase_check.rc != 0
+    - name: "netbase 패키지가 없을 경우에만 설치 진행"
+      ansible.builtin.apt:
+        name: "{{ package_netbase }}"
+        state: present
+        update_cache: yes
+      when: netbase_check.rc != 0
 
-# [계정 및 패스워드 파일 보호]
-- name: "/etc/passwd 파일 소유자 및 권한 설정 (644 권한)"
-  ansible.builtin.file:
-    path: "{{ path_passwd }}"
-    owner: "{{ file_owner_root }}"
-    group: "{{ file_group_root }}"
-    mode: "{{ file_mode_644 }}"
-    state: file
+    # [계정 및 패스워드 파일 보호]
+    - name: "/etc/passwd 파일 소유자 및 권한 설정 (644 권한)"
+      ansible.builtin.file:
+        path: "{{ path_passwd }}"
+        owner: "{{ file_owner_root }}"
+        group: "{{ file_group_root }}"
+        mode: "{{ file_mode_644 }}"
+        state: file
 
-- name: "/etc/shadow 파일 소유자 및 권한 설정 (Ubuntu 호환 640 권한)"
-  ansible.builtin.file:
-    path: "{{ path_shadow }}"
-    owner: "{{ file_owner_root }}"
-    group: "{{ file_group_shadow }}"
-    mode: "{{ file_mode_640 }}"
-    state: file
-
-
-# [시스템 설정 파일 보호]
-- name: "/etc/hosts 파일 소유자 및 권한 설정 (644 권한)"
-  ansible.builtin.file:
-    path: "{{ path_hosts }}"
-    owner: "{{ file_owner_root }}"
-    group: "{{ file_group_root }}"
-    mode: "{{ file_mode_644 }}"
-    state: file
-
-- name: "/etc/services 파일 소유자 및 권한 설정 (644 권한)"
-  ansible.builtin.file:
-    path: "{{ path_services }}"
-    owner: "{{ file_owner_root }}"
-    group: "{{ file_group_root }}"
-    mode: "{{ file_mode_644 }}"
-    state: file
-
-- name: "시스템 전역 환경 파일(/etc/profile) 소유자 및 권한 설정 (644 권한)"
-  ansible.builtin.file:
-    path: "{{ path_etc_profile }}"
-    owner: "{{ file_owner_root }}"
-    group: "{{ file_group_root }}"
-    mode: "{{ file_mode_644 }}"
-    state: file
-
-- name: "사용자 홈 디렉터리 내 환경 파일 권한 설정 (644 권한)"
-  ansible.builtin.shell: |
-    find /home /root -maxdepth 1 -type f \( -name ".profile" -o -name ".bashrc" -o -name ".bash_profile" -o -name ".cshrc" -o -name ".kshrc" -o -name ".login" \) -exec chmod 644 {} +
-  args:
-    executable: /bin/bash
-  register: env_file_chmod
-  changed_when: env_file_chmod.stdout | length > 0
-  failed_when: false 
+    - name: "/etc/shadow 파일 소유자 및 권한 설정 (Ubuntu 호환 640 권한)"
+      ansible.builtin.file:
+        path: "{{ path_shadow }}"
+        owner: "{{ file_owner_root }}"
+        group: "{{ file_group_shadow }}"
+        mode: "{{ file_mode_640 }}"
+        state: file
 
 
-# [TCP Wrapper를 통한 접속 제어]
-- name: "TCP Wrapper {{ path_hosts_allow | default('/etc/hosts.allow') }}에 허용 IP 등록 (기존 내역 초기화 및 동기화)"
-  ansible.builtin.copy:
-    dest: "{{ path_hosts_allow | default('/etc/hosts.allow') }}"
-    content: |
-      # Ansible Managed File (TCP Wrapper Allow List)
-      {% for ip in allowed_ssh_ips | default([]) %}
-      sshd : {{ ip }}
-      {% endfor %}
-    owner: "{{ file_owner_root | default('root') }}"
-    group: "{{ file_group_root | default('root') }}"
-    mode: "{{ file_mode_644 | default('0644') }}"
-  register: tcp_wrapper_update
+    # [시스템 설정 파일 보호]
+    - name: "/etc/hosts 파일 소유자 및 권한 설정 (644 권한)"
+      ansible.builtin.file:
+        path: "{{ path_hosts }}"
+        owner: "{{ file_owner_root }}"
+        group: "{{ file_group_root }}"
+        mode: "{{ file_mode_644 }}"
+        state: file
+
+    - name: "/etc/services 파일 소유자 및 권한 설정 (644 권한)"
+      ansible.builtin.file:
+        path: "{{ path_services }}"
+        owner: "{{ file_owner_root }}"
+        group: "{{ file_group_root }}"
+        mode: "{{ file_mode_644 }}"
+        state: file
+
+    - name: "시스템 전역 환경 파일(/etc/profile) 소유자 및 권한 설정 (644 권한)"
+      ansible.builtin.file:
+        path: "{{ path_etc_profile }}"
+        owner: "{{ file_owner_root }}"
+        group: "{{ file_group_root }}"
+        mode: "{{ file_mode_644 }}"
+        state: file
+
+    - name: "사용자 홈 디렉터리 내 환경 파일 권한 상태 점검 (644 기준)"
+      ansible.builtin.shell: |
+        find /home /root -maxdepth 1 -type f \( -name ".profile" -o -name ".bashrc" -o -name ".bash_profile" -o -name ".cshrc" -o -name ".kshrc" -o -name ".login" \) ! -perm 0644 -print
+      args:
+        executable: /bin/bash
+      register: env_file_check
+      changed_when: env_file_check.stdout | length > 0
+      failed_when: false
+      check_mode: false
+      when: os_security_privileged | default(true)
+
+    - name: "사용자 홈 디렉터리 내 환경 파일 권한 설정 (644 권한)"
+      ansible.builtin.shell: |
+        find /home /root -maxdepth 1 -type f \( -name ".profile" -o -name ".bashrc" -o -name ".bash_profile" -o -name ".cshrc" -o -name ".kshrc" -o -name ".login" \) ! -perm 0644 -exec chmod 644 {} +
+      args:
+        executable: /bin/bash
+      register: env_file_chmod
+      changed_when: true
+      when:
+        - os_security_privileged | default(true)
+        - apply_policy | bool
+        - env_file_check.stdout | default('') | length > 0
 
 
-- name: "TCP Wrapper {{ path_hosts_deny | default('/etc/hosts.deny') }}에 ALL 차단 설정 (기존 내역 초기화 및 동기화)"
-  ansible.builtin.copy:
-    dest: "{{ path_hosts_deny | default('/etc/hosts.deny') }}"
-    content: |
-      # Ansible Managed File (TCP Wrapper Deny All)
-      ALL: ALL
-    owner: "{{ file_owner_root | default('root') }}"
-    group: "{{ file_group_root | default('root') }}"
-    mode: "{{ file_mode_644 | default('0644') }}"
+    # [TCP Wrapper를 통한 접속 제어]
+    - name: "TCP Wrapper {{ path_hosts_allow | default('/etc/hosts.allow') }}에 허용 IP 등록 (기존 내역 초기화 및 동기화)"
+      ansible.builtin.copy:
+        dest: "{{ path_hosts_allow | default('/etc/hosts.allow') }}"
+        content: |
+          # Ansible Managed File (TCP Wrapper Allow List)
+          {% for ip in allowed_ssh_ips | default([]) %}
+          sshd : {{ ip }}
+          {% endfor %}
+        owner: "{{ file_owner_root | default('root') }}"
+        group: "{{ file_group_root | default('root') }}"
+        mode: "{{ file_mode_644 | default('0644') }}"
+      register: tcp_wrapper_update
+
+    - name: "TCP Wrapper {{ path_hosts_deny | default('/etc/hosts.deny') }}에 ALL 차단 설정 (기존 내역 초기화 및 동기화)"
+      ansible.builtin.copy:
+        dest: "{{ path_hosts_deny | default('/etc/hosts.deny') }}"
+        content: |
+          # Ansible Managed File (TCP Wrapper Deny All)
+          ALL: ALL
+        owner: "{{ file_owner_root | default('root') }}"
+        group: "{{ file_group_root | default('root') }}"
+        mode: "{{ file_mode_644 | default('0644') }}"
 
 
-# [우회 인증 차단]
-- name: "/etc/hosts.equiv 파일 제거"
-  ansible.builtin.file:
-    path: "{{ path_hosts_equiv }}"
-    state: absent
+    # [우회 인증 차단]
+    - name: "/etc/hosts.equiv 파일 제거"
+      ansible.builtin.file:
+        path: "{{ path_hosts_equiv }}"
+        state: absent
 
-- name: "전체 사용자 home 디렉터리 내 .rhosts 파일 검색 및 일괄 제거"
-  ansible.builtin.shell: |
-    find /home -name ".rhosts" -type f -exec rm -f {} +
-    find /root -name ".rhosts" -type f -exec rm -f {} +
-  args:
-    executable: /bin/bash
-  register: rhosts_remove
-  changed_when: rhosts_remove.stdout | length > 0
+    - name: "전체 사용자 home 및 root 디렉터리 내 .rhosts 파일 검색 (점검)"
+      ansible.builtin.shell: |
+        find /home /root -name ".rhosts" -type f -print
+      args:
+        executable: /bin/bash
+      register: rhosts_check
+      changed_when: rhosts_check.stdout | length > 0
+      failed_when: false
+      check_mode: false
+      when: os_security_privileged | default(true)
 
-
-# [취약한 권한 점검]
-- name: "물리 디스크 내 World-writable 파일 검색 및 쓰기 권한(o-w) 제거"
-  ansible.builtin.shell: |
-    find / \( {{ os_scan_fstypes | default('-fstype ext4 -o -fstype xfs') }} \) \( {{ os_scan_exclude_paths | default('-path /tmp -prune -o -path /var/tmp -prune') }} -o -type f -perm -0002 -exec chmod o-w {} + \) 2>/dev/null || true
-  args:
-    executable: /bin/bash
-  register: ww_remove
-  changed_when: ww_remove.stdout | length > 0
-
-
-- name: "불필요한 주요 실행 파일 존재 여부 확인"
-  ansible.builtin.stat:
-    path: "{{ item }}"
-  loop: "{{ unnecessary_suid_sgid_files }}"
-  register: suid_files_stat
-
-- name: "불필요한 주요 실행 파일의 SUID/SGID 속성 제거 (chmod -s)"
-  ansible.builtin.file:
-    path: "{{ item.item }}"
-    mode: "u-s,g-s"
-  loop: "{{ suid_files_stat.results }}"
-  when: item.stat.exists
+    - name: "검색된 .rhosts 파일 일괄 제거 (조치)"
+      ansible.builtin.shell: |
+        find /home /root -name ".rhosts" -type f -exec rm -f {} +
+      args:
+        executable: /bin/bash
+      register: rhosts_remove
+      changed_when: true
+      when:
+        - os_security_privileged | default(true)
+        - apply_policy | bool
+        - rhosts_check.stdout | default('') | length > 0
 
 
-- name: "root 홈 디렉터리 타 사용자 접근 제한 (700 권한)"
-  ansible.builtin.file:
-    path: "{{ path_root_dir }}"
-    owner: "{{ file_owner_root }}"
-    group: "{{ file_group_root }}"
-    mode: "{{ file_mode_700 }}"
-    state: directory
+    # [취약한 권한 점검]
+    - name: "물리 디스크 내 World-writable 파일 검색 (점검)"
+      ansible.builtin.shell: |
+        find / \( {{ os_scan_fstypes | default('-fstype ext4 -o -fstype xfs') }} \) \( {{ os_scan_exclude_paths | default('-path /tmp -prune -o -path /var/tmp -prune') }} -o -type f -perm -0002 -print \) 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: ww_check
+      changed_when: ww_check.stdout | length > 0
+      check_mode: false
+      when: os_security_privileged | default(true)
 
-- name: '소유자나 그룹이 존재하지 않는 파일 및 디렉터리를 root 소유로 일괄 변경'
-  ansible.builtin.shell: |
-    find /etc /tmp /bin /sbin /home /var \( -nouser -o -nogroup \) -exec chown root:root {} + 2>/dev/null || true
-  args:
-    executable: /bin/bash
-  register: orphan_files
-  changed_when: orphan_files.stdout | length > 0
+    - name: "World-writable 파일 타 사용자 쓰기 권한(o-w) 제거 (조치)"
+      ansible.builtin.shell: |
+        find / \( {{ os_scan_fstypes | default('-fstype ext4 -o -fstype xfs') }} \) \( {{ os_scan_exclude_paths | default('-path /tmp -prune -o -path /var/tmp -prune') }} -o -type f -perm -0002 -exec chmod o-w {} + \) 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: ww_remove
+      changed_when: true
+      when:
+        - os_security_privileged | default(true)
+        - apply_policy | bool
+        - ww_check.stdout | default('') | length > 0
+
+    - name: "불필요한 주요 실행 파일 존재 여부 확인"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ unnecessary_suid_sgid_files }}"
+      register: suid_files_stat
+
+    - name: "불필요한 주요 실행 파일의 SUID/SGID 속성 제거 (chmod -s)"
+      ansible.builtin.file:
+        path: "{{ item.item }}"
+        mode: "u-s,g-s"
+      loop: "{{ suid_files_stat.results }}"
+      when: item.stat.exists
+
+    - name: "root 홈 디렉터리 타 사용자 접근 제한 (700 권한)"
+      ansible.builtin.file:
+        path: "{{ path_root_dir }}"
+        owner: "{{ file_owner_root }}"
+        group: "{{ file_group_root }}"
+        mode: "{{ file_mode_700 }}"
+        state: directory
+
+    - name: "소유자나 그룹이 존재하지 않는 파일 및 디렉터리 검색 (점검)"
+      ansible.builtin.shell: |
+        find /etc /tmp /bin /sbin /home /var \( -nouser -o -nogroup \) -print 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: orphan_check
+      changed_when: orphan_check.stdout | length > 0
+      check_mode: false
+      when: os_security_privileged | default(true)
+
+    - name: '소유자나 그룹이 존재하지 않는 파일 및 디렉터리를 root 소유로 일괄 변경 (조치)'
+      ansible.builtin.shell: |
+        find /etc /tmp /bin /sbin /home /var \( -nouser -o -nogroup \) -exec chown root:root {} + 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: orphan_files
+      changed_when: true
+      when:
+        - os_security_privileged | default(true)
+        - apply_policy | bool
+        - orphan_check.stdout | default('') | length > 0
+
+    - name: "[검사 불가] 관리자 권한 부재로 수행하지 못한 파일 시스템 점검 항목 보고"
+      ansible.builtin.debug:
+        msg: >-
+          root 권한 없이 실행되어 다음 항목은 '검사 불가' 상태입니다 :
+          (1) 사용자 홈/루트 환경 파일 권한 점검, (2) .rhosts 파일 점검(/root 포함),
+          (3) World-writable 파일 점검, (4) 소유자 없는 파일 점검,
+          (5) /root 하위 환경 파일 PATH 점검.
+          become(-b) 옵션 또는 root 권한으로 재실행해야 정확한 점검이 가능합니다.
+      changed_when: true
+      when: not (os_security_privileged | default(true))
 
 
-# [/etc/profile 및 root 환경 파일의 PATH 변수 내 현재 디렉터리('.') 제거]
-- name: "PATH 설정을 점검할 주요 환경 파일 존재 여부 확인"
-  ansible.builtin.stat:
-    path: "{{ item }}"
-  loop: "{{ path_check_target_files }}"
-  register: path_files_stat
+    # [/etc/profile 및 root 환경 파일의 PATH 변수 내 현재 디렉터리('.') 제거]
+    - name: "PATH 설정을 점검할 주요 환경 파일 존재 여부 확인"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ path_check_target_files }}"
+      register: path_files_stat
 
-- name: "PATH 변수 내 중간에 위치한 '.' 제거"
-  ansible.builtin.replace:
-    path: "{{ item.item }}"
-    regexp: ':\.:'
-    replace: ':'
-  loop: "{{ path_files_stat.results }}"
-  when: item.stat.exists
+    - name: "PATH 변수 내 중간에 위치한 '.' 제거"
+      ansible.builtin.replace:
+        path: "{{ item.item }}"
+        regexp: ':\.:'
+        replace: ':'
+      loop: "{{ path_files_stat.results }}"
+      when: item.stat.exists
 
-- name: "PATH 변수 내 맨 뒤에 위치한 '.' 제거"
-  ansible.builtin.replace:
-    path: "{{ item.item }}"
-    regexp: ':\.$'
-    replace: ''
-  loop: "{{ path_files_stat.results }}"
-  when: item.stat.exists
+    - name: "PATH 변수 내 맨 뒤에 위치한 '.' 제거"
+      ansible.builtin.replace:
+        path: "{{ item.item }}"
+        regexp: ':\.$'
+        replace: ''
+      loop: "{{ path_files_stat.results }}"
+      when: item.stat.exists
 
-- name: "PATH 변수 내 맨 앞에 위치한 '.' 제거"
-  ansible.builtin.replace:
-    path: "{{ item.item }}"
-    regexp: 'PATH=\.:'
-    replace: 'PATH='
-  loop: "{{ path_files_stat.results }}"
-  when: item.stat.exists
+    - name: "PATH 변수 내 맨 앞에 위치한 '.' 제거"
+      ansible.builtin.replace:
+        path: "{{ item.item }}"
+        regexp: 'PATH=\.:'
+        replace: 'PATH='
+      loop: "{{ path_files_stat.results }}"
+      when: item.stat.exists
+
+
+  check_mode: "{{ not (apply_policy | bool) }}"

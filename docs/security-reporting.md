@@ -49,7 +49,24 @@ report_title = 보안조치 결과 보고서
 환경 변수 `AISE_REPORT_DIR`, `AISE_REPORT_TITLE` 또는 play 변수 `report_dir`,
 `report_title`도 지원합니다. play 변수가 가장 마지막에 적용됩니다.
 
-각 보고서는 해당 role의 task 실행 결과를 대상 호스트별로 집계합니다.
+DB, Docker, Kubernetes와 OpenStack 인증/인가 역할은
+`docs/security-item-mapping.md`의 정책 ID를 대상 호스트별로 집계합니다. 사전 점검,
+조회, 내부 fact 설정, 반복 task와 handler는 별도 정책으로 세지 않습니다. 그 밖의
+역할은 기존과 같이 task 실행 결과를 집계합니다.
+
+정책 ID 기반 보고서의 고정 정책 수는 다음과 같습니다.
+
+- DB: 9개 (`DB-01`~`DB-09`)
+- Docker: 20개 (`DOCKER-01`~`DOCKER-20`)
+- Kubernetes: 5개 (`K8S-01`~`K8S-05`)
+- Keystone/Nova/Cinder/Glance/Neutron: 각각 4/3/5/2/2개
+
+정책 ID 기반 집계에서는 점검 경고나 실패, check mode의 변경 예정 상태, 점검이
+비활성화되어 평가되지 않은 상태를 조치 필요로 기록합니다. 평가가 완료되고 변경이나
+경고가 없을 때만 조치 완료로 기록하므로 report 모드에서 두 수치의 합은 총 정책 수와
+일치합니다.
+
+일반 task 기반 보고서의 판정 규칙은 다음과 같습니다.
 
 - check mode에서 변경 예정인 task 또는 실패한 task: 조치 대상
 - 변경 없이 성공한 task: 조치 완료

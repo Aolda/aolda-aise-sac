@@ -7,7 +7,12 @@ db_package_state: present
 db_validate_after_apply: true
 
 db_config_file: /etc/my.cnf
+db_connection_mode: unix_socket
 db_login_unix_socket: /var/lib/mysql/mysql.sock
+db_login_host: 127.0.0.1
+db_login_port: 3306
+db_login_user: root
+db_login_password: ""
 db_runtime_user: mysql
 db_runtime_group: mysql
 db_max_config_file_mode: "0640"

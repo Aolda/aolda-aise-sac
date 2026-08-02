@@ -5,7 +5,11 @@
 
 - name: "3-1. 일반 사용자에게서 GRANT OPTION 권한 회수"
   ansible.mysql.mysql_query:
-    login_unix_socket: "{{ db_login_unix_socket }}"
+    login_unix_socket: "{{ db_login_unix_socket if db_connection_mode == 'unix_socket' else omit }}"
+    login_host: "{{ db_login_host if db_connection_mode == 'tcp' else omit }}"
+    login_port: "{{ db_login_port if db_connection_mode == 'tcp' else omit }}"
+    login_user: "{{ db_login_user }}"
+    login_password: "{{ db_login_password }}"
     query: "{{ db_revoke_grant_option_query }}"
   vars:
     db_revoke_grant_option_query: >-
@@ -19,7 +23,11 @@
 
 - name: "4-1. mysql.user 테이블에 대한 접근(Select) 권한 회수"
   ansible.mysql.mysql_query:
-    login_unix_socket: "{{ db_login_unix_socket }}"
+    login_unix_socket: "{{ db_login_unix_socket if db_connection_mode == 'unix_socket' else omit }}"
+    login_host: "{{ db_login_host if db_connection_mode == 'tcp' else omit }}"
+    login_port: "{{ db_login_port if db_connection_mode == 'tcp' else omit }}"
+    login_user: "{{ db_login_user }}"
+    login_password: "{{ db_login_password }}"
     query: "{{ db_revoke_user_table_query }}"
   vars:
     db_revoke_user_table_query: >-
@@ -33,7 +41,11 @@
 
 - name: "4-2. 권한 변경 사항 적용"
   ansible.mysql.mysql_query:
-    login_unix_socket: "{{ db_login_unix_socket }}"
+    login_unix_socket: "{{ db_login_unix_socket if db_connection_mode == 'unix_socket' else omit }}"
+    login_host: "{{ db_login_host if db_connection_mode == 'tcp' else omit }}"
+    login_port: "{{ db_login_port if db_connection_mode == 'tcp' else omit }}"
+    login_user: "{{ db_login_user }}"
+    login_password: "{{ db_login_password }}"
     query: "FLUSH PRIVILEGES"
   when:
     - db_changes_allowed | bool

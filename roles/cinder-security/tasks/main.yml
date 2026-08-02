@@ -104,4 +104,6 @@
 
 - name: "3-8. Cinder 적용 후 검증"
   ansible.builtin.import_tasks: validate.yml
-  when: cinder_security_validate_after_apply | bool
+  when:
+    - cinder_security_validate_after_apply | bool
+    - not ansible_check_mode

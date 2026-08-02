@@ -3,9 +3,11 @@
   ansible.builtin.assert:
     that:
       - db_effective_action_mode in ['report', 'apply']
+      - db_connection_mode in ['unix_socket', 'tcp']
     fail_msg: >-
-      Invalid DB mode. security_action_mode/apply_policy must resolve to
-      report or apply.
+      Invalid DB mode or connection model. security_action_mode/apply_policy
+      must resolve to report/apply and db_connection_mode must be
+      unix_socket/tcp.
   vars:
     db_effective_action_mode: "{{ security_action_mode | default((apply_policy | default(false) | bool) | ternary('apply', 'report')) }}"
 

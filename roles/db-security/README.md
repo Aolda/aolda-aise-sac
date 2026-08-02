@@ -46,7 +46,12 @@ MariaDB/MySQL 서버의 계정 정리, 권한 제한, 패스워드 정책, 실�
 | `db_package_name_redhat` | `mariadb-server` | RHEL/CentOS 계열 DB 패키지명입니다. |
 | `db_apply_security_patch` | `false` | DB 패키지 최신 보안 패치 적용 여부입니다. |
 | `db_config_file` | `/etc/my.cnf` | DB 설정 파일 경로입니다. 배포판별 실제 경로 확인이 필요합니다. |
+| `db_connection_mode` | `unix_socket` | DB 접속 방식입니다. 호스트 DB는 `unix_socket`, Kolla MariaDB처럼 TCP로 노출된 DB는 `tcp`를 사용합니다. |
 | `db_login_unix_socket` | `/var/lib/mysql/mysql.sock` | `ansible.mysql` 모듈 접속에 사용할 Unix socket 경로입니다. |
+| `db_login_host` | `127.0.0.1` | `db_connection_mode=tcp`일 때 접속할 DB 호스트입니다. |
+| `db_login_port` | `3306` | `db_connection_mode=tcp`일 때 접속할 DB 포트입니다. |
+| `db_login_user` | `root` | DB 점검 및 조치에 사용할 관리 계정입니다. |
+| `db_login_password` | `""` | DB 관리 계정 비밀번호입니다. 평문 inventory 대신 Ansible Vault 사용을 권장합니다. |
 | `db_runtime_user` | `mysql` | DB 데몬 실행 계정입니다. |
 | `db_runtime_group` | `mysql` | DB 설정 파일과 로그 디렉터리에 사용할 그룹입니다. |
 | `db_test_users` | `test`, `guest` | 제거할 테스트 계정 목록입니다. |
@@ -75,3 +80,18 @@ MariaDB/MySQL 서버의 계정 정리, 권한 제한, 패스워드 정책, 실�
 | `db_set_default_authentication_plugin` | `false` | `[mysqld]`에 기본 인증 플러그인 설정을 추가할지 여부입니다. |
 | `db_secure_auth_users` | `[]` | 인증 플러그인을 변경할 사용자 목록입니다. 각 항목에 `name`, `password`, 선택적으로 `host`, `plugin`을 지정합니다. |
 | `db_user_table_revoke_privileges` | `ALL PRIVILEGES` | `mysql.user` 테이블에서 회수할 권한입니다. |
+
+## Kolla MariaDB TCP 접속 예시
+
+Kolla MariaDB가 관리 노드에서 TCP로 접근 가능한 경우 다음처럼 지정합니다.
+
+```yaml
+db_connection_mode: tcp
+db_login_host: 127.0.0.1
+db_login_port: 3306
+db_login_user: root
+db_login_password: "{{ vault_db_login_password }}"
+```
+
+컨테이너 내부 socket만 노출된 환경에서는 inventory의 DB host를 MariaDB
+컨테이너에 연결하거나 TCP listener를 제한적으로 노출한 뒤 위 변수를 사용합니다.

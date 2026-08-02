@@ -3,4 +3,6 @@
   ansible.builtin.service:
     name: "{{ glance_security_service_name }}"
     state: restarted
-  when: glance_security_restart_service | bool
+  when:
+    - glance_security_restart_service | bool
+    - glance_security_changes_allowed | default(false) | bool

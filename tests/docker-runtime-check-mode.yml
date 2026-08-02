@@ -1,0 +1,70 @@
+---
+- name: Verify Docker runtime inspection in Ansible check mode
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  check_mode: true
+  vars:
+    docker_runtime_test_bin: /tmp/aise-docker-runtime-test-bin
+  tasks:
+    - name: Exercise Docker runtime checks
+      block:
+        - name: Create fake Docker CLI directory
+          ansible.builtin.file:
+            path: "{{ docker_runtime_test_bin }}"
+            state: directory
+            mode: "0755"
+          check_mode: false
+
+        - name: Install read-only fake Docker CLI
+          ansible.builtin.copy:
+            dest: "{{ docker_runtime_test_bin }}/docker"
+            mode: "0755"
+            content: |
+              #!/bin/sh
+              case "$1" in
+                version) printf '%s\n' '26.1.0' ;;
+                info) printf '%s\n' '["name=seccomp"]' ;;
+                inspect) printf '%s\n' '{"SecurityOpt":null,"UsernsMode":"","PidsLimit":100}' ;;
+                top) printf '%s\n' 'UID PID CMD' ;;
+                ps)
+                  case "$*" in
+                    *--format*) printf '%s\n' 'test-container Ports=0.0.0.0:22->22/tcp' ;;
+                    *) printf '%s\n' 'test-container' ;;
+                  esac
+                  ;;
+                *) exit 1 ;;
+              esac
+          check_mode: false
+
+        - name: Run Docker runtime checks in check mode
+          ansible.builtin.include_role:
+            name: docker-security
+            tasks_from: 5_container_runtime_checks.yml
+            apply:
+              environment:
+                PATH: "{{ docker_runtime_test_bin }}:{{ lookup('env', 'PATH') }}"
+          vars:
+            docker_runtime_check_mode: warn
+            docker_fail_on_runtime_policy_violation: false
+            docker_required_container_security_opts:
+              - no-new-privileges:true
+            docker_privileged_port_threshold: 1024
+            docker_privileged_port_regex: '(?<![0-9])(?:[0-9]{1,3}|10[0-1][0-9]|102[0-3])->'
+            docker_forbidden_container_process_patterns:
+              - sshd
+
+        - name: Assert runtime data was inspected and normalized
+          ansible.builtin.assert:
+            that:
+              - docker_cli_check.rc == 0
+              - docker_container_runtime_checks | length == 1
+              - docker_container_runtime_checks[0].security_opt | length == 0
+              - docker_container_runtime_checks[0].missing_security_opt == ['no-new-privileges:true']
+              - docker_container_ports.stdout is search('22->22/tcp')
+      always:
+        - name: Remove fake Docker CLI directory
+          ansible.builtin.file:
+            path: "{{ docker_runtime_test_bin }}"
+            state: absent
+          check_mode: false

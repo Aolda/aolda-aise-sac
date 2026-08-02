@@ -1,4 +1,12 @@
 ---
+- name: "4-0-0. Glance 실행 모드 설정"
+  ansible.builtin.set_fact:
+    glance_security_changes_allowed: >-
+      {{
+        (security_action_mode | default((apply_policy | default(false) | bool) | ternary('apply', 'report'))) == 'apply'
+        and not ansible_check_mode
+      }}
+
 - name: "4-0. Glance 보안 적용 사전 점검"
   ansible.builtin.import_tasks: precheck.yml
 
@@ -8,6 +16,7 @@
     owner: "{{ glance_security_config_owner }}"
     group: "{{ glance_security_config_group }}"
     mode: "{{ glance_security_config_mode }}"
+  check_mode: "{{ not glance_security_changes_allowed }}"
   when: glance_security_manage_config_permissions | bool
 
 - name: "OSAUTH-14. 이미지 스토리지 서비스 인증을 위한 Keystone 설정"
@@ -18,6 +27,7 @@
     value: keystone
     backup: true
     mode: "{{ glance_security_config_mode }}"
+  check_mode: "{{ not glance_security_changes_allowed }}"
   notify: Restart Glance
 
 - name: "OSAUTH-13. 이미지 스토리지 서비스 인증을 위한 TLS 활성화"
@@ -28,6 +38,7 @@
     value: "{{ item.value }}"
     backup: true
     mode: "{{ glance_security_config_mode }}"
+  check_mode: "{{ not glance_security_changes_allowed }}"
   loop:
     - option: auth_uri
       value: "{{ glance_security_keystone_endpoint }}"
@@ -42,4 +53,6 @@
 
 - name: "4-4. Glance 적용 후 검증"
   ansible.builtin.import_tasks: validate.yml
-  when: glance_security_validate_after_apply | bool
+  when:
+    - glance_security_validate_after_apply | bool
+    - glance_security_changes_allowed | bool

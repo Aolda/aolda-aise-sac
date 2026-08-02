@@ -1,0 +1,58 @@
+---
+- name: Verify Glance report mode does not change configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    glance_report_test_config: /tmp/aise-glance-report-safety.conf
+  tasks:
+    - name: Exercise Glance report mode
+      block:
+        - name: Create Glance report-mode fixture
+          ansible.builtin.copy:
+            dest: "{{ glance_report_test_config }}"
+            content: |
+              [paste_deploy]
+              flavor = noauth
+            mode: "0644"
+
+        - name: Read fixture ownership
+          ansible.builtin.stat:
+            path: "{{ glance_report_test_config }}"
+          register: glance_report_fixture_before
+
+        - name: Run Glance role in report mode
+          ansible.builtin.include_role:
+            name: glance-security
+          vars:
+            security_action_mode: report
+            apply_policy: false
+            glance_security_config_file: "{{ glance_report_test_config }}"
+            glance_security_config_owner: "{{ glance_report_fixture_before.stat.pw_name }}"
+            glance_security_config_group: "{{ glance_report_fixture_before.stat.gr_name }}"
+            glance_security_config_mode: "0600"
+            glance_security_manage_config_permissions: true
+            glance_security_validate_after_apply: true
+            glance_security_restart_service: true
+
+        - name: Read fixture after report mode
+          ansible.builtin.stat:
+            path: "{{ glance_report_test_config }}"
+          register: glance_report_fixture_after
+
+        - name: Read fixture content after report mode
+          ansible.builtin.slurp:
+            path: "{{ glance_report_test_config }}"
+          register: glance_report_fixture_content
+
+        - name: Assert report mode preserved the fixture
+          ansible.builtin.assert:
+            that:
+              - glance_report_fixture_after.stat.mode == "0644"
+              - "'flavor = noauth' in (glance_report_fixture_content.content | b64decode)"
+              - "'flavor = keystone' not in (glance_report_fixture_content.content | b64decode)"
+      always:
+        - name: Remove Glance report-mode fixture
+          ansible.builtin.file:
+            path: "{{ glance_report_test_config }}"
+            state: absent

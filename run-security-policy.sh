@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+export ANSIBLE_INVENTORY="${ANSIBLE_INVENTORY:-inventory/hosts.ini}"
+
 apply_policy=false
 forward_args=()
 inventory_path=""

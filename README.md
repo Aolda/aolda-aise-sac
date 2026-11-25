@@ -157,6 +157,16 @@ ANSIBLE_HOME=.ansible ansible-galaxy collection install -r requirements.yml
 
 ### b. 기본 보고서 모드 실행
 
+저장소 루트에서 `./run-security-policy.sh`를 실행하면 기본 서버 목록인 `inventory/hosts.ini`로 점검합니다. `os_nodes`에는 `openstack_nodes`가 포함되어 해당 Ubuntu 서버에 기존 운영체제 보안 정책을 실행합니다. 다른 서버 목록은 `-i`로 지정하고, 운영체제 보안만 선택하려면 `--tags os`를 사용합니다.
+
+```bash
+./run-security-policy.sh --tags os --list-hosts
+./run-security-policy.sh --tags os
+./run-security-policy.sh --tags os --apply-policy=true
+```
+
+실제 적용에는 원격 접속·계정 정책 변경, 스토리지 관련 서비스 중지, 시간 동기화 서비스 교체, 패키지 업그레이드가 포함됩니다.
+
 ```bash
 ANSIBLE_HOME=.ansible ansible-playbook playbooks/security-policy-2026.yml \
   -i inventory/security-policy-2026.example.ini

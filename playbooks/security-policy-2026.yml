@@ -31,3 +31,7 @@
 
 - name: Apply 2026 OpenStack security controls
   ansible.builtin.import_playbook: openstack-security.yml
+
+- name: Apply Ubuntu node security controls
+  ansible.builtin.import_playbook: os_security_playbook.yml
+  tags: [os, security-policy-2026]

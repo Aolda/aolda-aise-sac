@@ -1,0 +1,19 @@
+---
+- name: Exercise real file module against a temporary keyring
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars:
+    enable_ceph_keyring_hardening: true
+    ceph_keyring_report_only: false
+    ceph_keyring_policy:
+      - path: "{{ fixture_path }}"
+        owner: "{{ fixture_owner }}"
+        group: "{{ fixture_group }}"
+        mode: "0600"
+  tasks:
+    - name: Run production keyring tasks
+      ansible.builtin.include_role:
+        name: ceph-security-baseline
+        tasks_from: keyring

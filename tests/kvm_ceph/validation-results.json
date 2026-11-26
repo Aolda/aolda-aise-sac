@@ -1,0 +1,95 @@
+{
+  "local_tests": {
+    "run": 63,
+    "passed": 63
+  },
+  "representative_mutations": {
+    "registered": 12,
+    "detected": 12,
+    "cases": [
+      {
+        "stage": 1,
+        "defect": "numeric-days",
+        "status": "detected"
+      },
+      {
+        "stage": 1,
+        "defect": "protected-account",
+        "status": "detected"
+      },
+      {
+        "stage": 1,
+        "defect": "implicit-key-replacement",
+        "status": "detected"
+      },
+      {
+        "stage": 1,
+        "defect": "remove-management-key",
+        "status": "detected"
+      },
+      {
+        "stage": 2,
+        "defect": "duplicate-snapshot",
+        "status": "detected"
+      },
+      {
+        "stage": 2,
+        "defect": "snapshot-check-writes",
+        "status": "detected"
+      },
+      {
+        "stage": 2,
+        "defect": "repeat-ceph-auth-set",
+        "status": "detected"
+      },
+      {
+        "stage": 3,
+        "defect": "ssh-check-writes",
+        "status": "detected"
+      },
+      {
+        "stage": 3,
+        "defect": "ignore-effective-ssh",
+        "status": "detected"
+      },
+      {
+        "stage": 3,
+        "defect": "parallel-maintenance",
+        "status": "detected"
+      },
+      {
+        "stage": 4,
+        "defect": "unknown-is-compliant",
+        "status": "detected"
+      },
+      {
+        "stage": 4,
+        "defect": "unverified-apply-success",
+        "status": "detected"
+      }
+    ]
+  },
+  "remote_report": {
+    "ok": 63,
+    "changed": 0,
+    "failed": 0,
+    "skipped": 72
+  },
+  "remote_fixtures": {
+    "ok": 89,
+    "changed_including_setup_cleanup": 20,
+    "failed": 0,
+    "expected_rejection": 1
+  },
+  "remote_scenario_types": {
+    "executed": 10,
+    "passed": 10,
+    "not_executed": 6
+  },
+  "limits": [
+    "No real Ceph cluster",
+    "No package update or reboot",
+    "No live firewall or SELinux mutation",
+    "No running guest disruption test"
+  ]
+}

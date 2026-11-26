@@ -46,16 +46,30 @@
   - apply_policy | default(false) | bool
   tags:
   - ceph_ssh_keys
-- name: Ceph SSH private key 권한 적용
-  ansible.builtin.shell: "set -euo pipefail\nshopt -s nullglob\nchanged=0\nfor key_file in \"{{ item.value }}/.ssh\"\
-    /id_*; do\n  case \"$key_file\" in\n    *.pub|*authorized_keys|*known_hosts) continue ;;\n  esac\n  current_mode=\"\
-    $(stat -c '%a' \"$key_file\")\"\n  if [ \"$current_mode\" != \"{{ ceph_private_key_mode }}\" ]; then\n    chmod\
-    \ \"{{ ceph_private_key_mode }}\" \"$key_file\"\n    changed=1\n  fi\ndone\necho \"$changed\"\n"
-  args:
-    executable: /bin/bash
+- name: Ceph SSH 개인키 파일 조회
+  ansible.builtin.find:
+    paths: '{{ item.value }}/.ssh'
+    patterns:
+    - id_*
+    excludes:
+    - '*.pub'
+    - '*authorized_keys'
+    - '*known_hosts'
+    file_type: file
+    follow: false
   loop: '{{ ceph_ssh_user_homes | default({}) | dict2items }}'
-  register: ceph_private_key_mode_result
-  changed_when: ceph_private_key_mode_result.stdout == '1'
+  register: ceph_private_keys
+  when: enable_ceph_ssh_key_check | bool
+  tags:
+  - ceph_ssh_keys
+- name: Ceph SSH 개인키 권한 적용
+  ansible.builtin.file:
+    path: '{{ item.path }}'
+    mode: '{{ ceph_private_key_mode }}'
+    state: file
+    follow: false
+  loop: '{{ ceph_private_keys.results | default([]) | selectattr(''files'', ''defined'') | map(attribute=''files'')
+    | flatten }}'
   become: true
   when:
   - enable_ceph_ssh_key_check | bool

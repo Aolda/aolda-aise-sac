@@ -1,4 +1,12 @@
 ---
+- name: CephX 목표값 구성
+  ansible.builtin.set_fact:
+    ceph_auth_targets:
+      auth_cluster_required: '{{ ceph_auth_cluster_required }}'
+      auth_service_required: '{{ ceph_auth_service_required }}'
+      auth_client_required: '{{ ceph_auth_client_required }}'
+  tags:
+  - ceph_auth
 - name: Ceph 인증 설정 조회
   ansible.builtin.command:
     argv:
@@ -30,6 +38,19 @@
   when: enable_cephx_enforcement | bool or ceph_auth_report_only | bool
   tags:
   - ceph_auth
+- name: CephX 변경 전 조회 성공 확인
+  ansible.builtin.assert:
+    that:
+    - item.rc == 0
+    fail_msg: 인증 상태를 조회하지 못해 변경을 중단합니다.
+  loop: '{{ ceph_auth_current.results | default([]) }}'
+  when:
+  - enable_cephx_enforcement | bool
+  - not ceph_auth_report_only | bool
+  - security_action_mode == 'enforce'
+  - apply_policy | default(false) | bool
+  tags:
+  - ceph_auth
 - name: CephX 인증 설정 적용
   ansible.builtin.command:
     argv:
@@ -37,15 +58,9 @@
     - config
     - set
     - mon
-    - '{{ item.key }}'
-    - '{{ item.value }}'
-  loop:
-  - key: auth_cluster_required
-    value: '{{ ceph_auth_cluster_required }}'
-  - key: auth_service_required
-    value: '{{ ceph_auth_service_required }}'
-  - key: auth_client_required
-    value: '{{ ceph_auth_client_required }}'
+    - '{{ item.item }}'
+    - '{{ ceph_auth_targets[item.item] }}'
+  loop: '{{ ceph_auth_current.results | default([]) }}'
   register: ceph_auth_set_result
   changed_when: ceph_auth_set_result.rc == 0
   become: true
@@ -54,6 +69,8 @@
   - not ceph_auth_report_only | bool
   - security_action_mode == 'enforce'
   - apply_policy | default(false) | bool
+  - item.rc == 0
+  - item.stdout | trim != ceph_auth_targets[item.item]
   tags:
   - ceph_auth
 - name: Ceph client keyring 배포

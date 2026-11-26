@@ -1,4 +1,31 @@
 ---
+- name: Ceph 관리자 현재 그룹 조회
+  ansible.builtin.command:
+    argv:
+    - id
+    - -nG
+    - '{{ item }}'
+  loop: '{{ ceph_admin_users }}'
+  register: ceph_admin_current_groups
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  when: enable_ceph_admin_user_policy | bool
+  tags:
+  - ceph_admin_user
+- name: Ceph 기존 전체 관리자 그룹 보호
+  ansible.builtin.assert:
+    that:
+    - ceph_admin_allow_full_sudo | bool or not (item.stdout.split() | intersect(['sudo', 'wheel']))
+    fail_msg: 기존 sudo/wheel 권한이 있습니다. 기존 권한 검토 후 전체 권한 허용 여부를 명시하십시오.
+  loop: '{{ ceph_admin_current_groups.results | default([]) }}'
+  when:
+  - enable_ceph_admin_user_policy | bool
+  - item.rc == 0
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  tags:
+  - ceph_admin_user
 - name: Ceph 관리자 계정 report
   ansible.builtin.debug:
     msg:
@@ -68,17 +95,6 @@
   tags:
   - ceph_admin_user
 - name: Ceph root SSH 제한
-  ansible.builtin.copy:
-    content: '# Managed by Ansible: ceph-security-baseline
-
-      PermitRootLogin no
-
-      '
-    dest: /etc/ssh/sshd_config.d/90-ceph-root-login.conf
-    owner: root
-    group: root
-    mode: '0644'
-    validate: /usr/sbin/sshd -t -f %s
   become: true
   notify: Reload sshd
   when:
@@ -88,3 +104,12 @@
   - apply_policy | default(false) | bool
   tags:
   - ceph_admin_user
+  security_sshd_dropin:
+    path: /etc/ssh/sshd_config.d/90-ceph-root-login.conf
+    content: '# Managed by Ansible: ceph-security-baseline
+
+      PermitRootLogin no
+
+      '
+    expected:
+      permitrootlogin: 'no'

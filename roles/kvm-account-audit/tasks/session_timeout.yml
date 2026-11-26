@@ -14,13 +14,6 @@
   tags:
   - kvm_session_timeout
 - name: KVM SSH timeout 설정 배포
-  ansible.builtin.template:
-    src: sshd_security_baseline.conf.j2
-    dest: '{{ sshd_security_config_path }}'
-    owner: root
-    group: root
-    mode: '0644'
-    validate: /usr/sbin/sshd -t -f %s
   become: true
   notify: Reload sshd
   when:
@@ -29,6 +22,12 @@
   - apply_policy | default(false) | bool
   tags:
   - kvm_session_timeout
+  security_sshd_dropin:
+    path: '{{ sshd_security_config_path }}'
+    content: '{{ lookup(''template'', ''sshd_security_baseline.conf.j2'') }}'
+    expected:
+      clientaliveinterval: '{{ ssh_client_alive_interval }}'
+      clientalivecountmax: '{{ ssh_client_alive_count_max }}'
 - name: KVM shell timeout 설정 배포
   ansible.builtin.template:
     src: shell_timeout.sh.j2
@@ -36,6 +35,7 @@
     owner: root
     group: root
     mode: '0644'
+    backup: true
   become: true
   when:
   - enable_kvm_session_timeout | bool

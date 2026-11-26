@@ -1,0 +1,186 @@
+---
+- name: Real Ceph lab authentication and convergence verification
+  hosts: baseline_test
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  vars:
+    lab: /var/lib/aise-ceph-test
+    auth_options:
+    - auth_cluster_required
+    - auth_service_required
+    - auth_client_required
+  pre_tasks:
+  - name: Require explicit disposable lab confirmation
+    ansible.builtin.assert:
+      that:
+      - baseline_test_confirmed | default(false) | bool
+      - not ansible_check_mode
+      - ansible_facts.distribution == 'Ubuntu'
+      - ansible_facts.distribution_version == '24.04'
+  - name: Read lab identifier
+    ansible.builtin.slurp:
+      src: '{{ lab }}/fsid'
+    register: lab_id
+  - name: Read actual cluster identifier
+    ansible.builtin.command: ceph fsid
+    changed_when: false
+    register: cluster_id
+  - name: Confirm exclusively owned test cluster
+    ansible.builtin.assert:
+      that: (lab_id.content | b64decode | trim) == (cluster_id.stdout | trim)
+  tasks:
+  - name: Authentication and permission tests
+    block:
+    - name: Read existing authentication configuration
+      ansible.builtin.command:
+        argv: [ceph, config, get, mon, '{{ item }}']
+      loop: '{{ auth_options }}'
+      changed_when: false
+      register: initial_auth
+    - name: Require secure starting settings
+      ansible.builtin.assert:
+        that: item.stdout | trim == 'cephx'
+      loop: '{{ initial_auth.results }}'
+    - name: Introduce equivalent authentication list drift without enabling none
+      ansible.builtin.command:
+        argv: [ceph, config, set, mon, '{{ item }}', 'cephx,cephx']
+      loop: '{{ auth_options }}'
+      changed_when: true
+    - name: Report detects drift without applying
+      ansible.builtin.include_role: &auth_role
+        name: ceph-security-baseline
+        tasks_from: auth
+      vars:
+        enable_cephx_enforcement: true
+        ceph_auth_report_only: true
+        apply_policy: true
+        security_action_mode: enforce
+    - name: Confirm report detected needs_action
+      ansible.builtin.assert:
+        that:
+        - security_policy_evidence.ceph_auth.status == 'needs_action'
+        - not ceph_auth_set_result.changed
+    - name: Disabled apply switch must not repair drift
+      ansible.builtin.include_role: *auth_role
+      vars:
+        enable_cephx_enforcement: true
+        ceph_auth_report_only: false
+        apply_policy: false
+        security_action_mode: enforce
+    - name: Verify drift persists after report and disabled apply modes
+      ansible.builtin.command:
+        argv: [ceph, config, get, mon, '{{ item }}']
+      loop: '{{ auth_options }}'
+      changed_when: false
+      register: preserved_drift
+    - name: Assert no-write modes preserved database
+      ansible.builtin.assert:
+        that: item.stdout | trim == 'cephx,cephx'
+      loop: '{{ preserved_drift.results }}'
+    - name: Apply real authentication policy
+      ansible.builtin.include_role: *auth_role
+      vars: &auth_apply
+        enable_cephx_enforcement: true
+        ceph_auth_report_only: false
+        apply_policy: true
+        security_action_mode: enforce
+    - name: Confirm all three settings were repaired
+      ansible.builtin.assert:
+        that:
+        - ceph_auth_set_result.changed
+        - ceph_auth_set_result.results | selectattr('changed') | list | length == 3
+        - security_policy_evidence.ceph_auth.status == 'applied'
+    - name: Repeat real authentication policy
+      ansible.builtin.include_role: *auth_role
+      vars: *auth_apply
+    - name: Confirm second policy application changes nothing
+      ansible.builtin.assert:
+        that:
+        - not ceph_auth_set_result.changed
+        - security_policy_evidence.ceph_auth.status == 'compliant'
+    - name: Read running monitor effective configuration
+      ansible.builtin.command:
+        argv: [ceph, config, show, mon.aise-test, '{{ item }}']
+      loop: '{{ auth_options }}'
+      changed_when: false
+      register: effective_auth
+    - name: Confirm running daemon requires cephx
+      ansible.builtin.assert:
+        that: item.stdout | trim == 'cephx'
+      loop: '{{ effective_auth.results }}'
+    - name: Introduce real admin keyring permission drift
+      ansible.builtin.file:
+        path: /etc/ceph/ceph.client.admin.keyring
+        mode: '0640'
+    - name: Apply admin keyring policy
+      ansible.builtin.include_role: &key_role
+        name: ceph-security-baseline
+        tasks_from: keyring
+      vars: &key_apply
+        apply_policy: true
+        security_action_mode: enforce
+        ceph_keyring_report_only: false
+    - name: Confirm permission repaired
+      ansible.builtin.assert:
+        that: ceph_keyring_applied.changed
+    - name: Repeat admin keyring policy
+      ansible.builtin.include_role: *key_role
+      vars: *key_apply
+    - name: Confirm permission repeat changes nothing
+      ansible.builtin.assert:
+        that: not ceph_keyring_applied.changed
+    - name: Create wrong key for existing test identity
+      ansible.builtin.command:
+        argv: [ceph-authtool, --create-keyring, '{{ lab }}/wrong.keyring', --gen-key, -n, client.aise-test]
+      changed_when: true
+      no_log: true
+    - name: Incorrect key must fail authentication rather than time out
+      ansible.builtin.command:
+        argv: [timeout, '15', ceph, -n, client.aise-test, -k, '{{ lab }}/wrong.keyring', status]
+      changed_when: false
+      failed_when: false
+      register: denied_auth
+    - name: Verify explicit authentication rejection
+      ansible.builtin.assert:
+        that:
+        - denied_auth.rc == 13
+        - "'permission denied' in (denied_auth.stderr | lower) or 'operation not permitted' in (denied_auth.stderr | lower)"
+    - name: Limited client must not change monitor configuration
+      ansible.builtin.command:
+        argv: [timeout, '15', ceph, -n, client.aise-test, -k, '{{ lab }}/client.keyring', config, set, mon, auth_client_required, cephx]
+      changed_when: false
+      failed_when: false
+      register: denied_admin
+    - name: Verify explicit capability rejection
+      ansible.builtin.assert:
+        that:
+        - denied_admin.rc == 13
+        - "'eacces: access denied' in (denied_admin.stderr | lower)"
+    - name: Write object with authorized limited client
+      ansible.builtin.command:
+        argv: [timeout, '30', rados, -n, client.aise-test, -k, '{{ lab }}/client.keyring', -p, aise-security-test, put, baseline-probe, '{{ lab }}/input']
+      changed_when: true
+    - name: Read object with authorized limited client
+      ansible.builtin.command:
+        argv: [timeout, '30', rados, -n, client.aise-test, -k, '{{ lab }}/client.keyring', -p, aise-security-test, get, baseline-probe, '{{ lab }}/output']
+      changed_when: false
+    - name: Verify object contents
+      ansible.builtin.command:
+        argv: [cmp, '{{ lab }}/input', '{{ lab }}/output']
+      changed_when: false
+    always:
+    - name: Restore secure lab authentication settings
+      ansible.builtin.command:
+        argv: [ceph, config, set, mon, '{{ item }}', cephx]
+      loop: '{{ auth_options }}'
+      changed_when: true
+    - name: Restore admin keyring permissions
+      ansible.builtin.file:
+        path: /etc/ceph/ceph.client.admin.keyring
+        mode: '0600'
+    - name: Remove deliberately incorrect key
+      ansible.builtin.file:
+        path: '{{ lab }}/wrong.keyring'
+        state: absent

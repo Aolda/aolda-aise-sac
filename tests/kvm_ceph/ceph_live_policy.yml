@@ -1,0 +1,35 @@
+---
+- name: Run the complete Ceph role on the explicitly confirmed lab
+  hosts: baseline_test
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  check_mode: '{{ ansible_check_mode or not (apply_policy | default(false) | bool) }}'
+  vars:
+    ceph_installation_layout: host_packages
+    enable_cephx_enforcement: true
+    ceph_auth_report_only: false
+    ceph_keyring_report_only: false
+    enable_ceph_ssh_key_check: false
+    enable_ceph_admin_user_policy: false
+    enable_ceph_selinux: false
+    enable_ceph_patch: false
+  pre_tasks:
+  - name: Require explicit lab confirmation
+    ansible.builtin.assert:
+      that: baseline_test_confirmed | default(false) | bool
+  - name: Read exclusively owned lab identifier
+    ansible.builtin.slurp:
+      src: /var/lib/aise-ceph-test/fsid
+    register: lab_id
+  - name: Read current cluster identifier
+    ansible.builtin.command: ceph fsid
+    changed_when: false
+    check_mode: false
+    register: cluster_id
+  - name: Refuse other clusters
+    ansible.builtin.assert:
+      that: (lab_id.content | b64decode | trim) == (cluster_id.stdout | trim)
+  roles:
+  - role: ceph-security-baseline

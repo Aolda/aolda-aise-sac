@@ -1,58 +1,49 @@
 ---
-- name: "Ceph config 파일 상태 조회"
+- name: Ceph config 파일 상태 조회
   ansible.builtin.stat:
-    path: "{{ item }}"
-  loop: "{{ ceph_config_files }}"
+    path: '{{ item }}'
+  loop: '{{ ceph_config_files }}'
   register: ceph_config_stat
   when: enable_ceph_config_permission_check | bool
   tags:
-    - ceph_config
-
-- name: "Ceph config 민감정보 패턴 조회"
-  ansible.builtin.shell: |
-    set -euo pipefail
-    if [ ! -f {{ item | quote }} ]; then
-      echo absent
-      exit 0
-    fi
-    if grep -Eiq {{ ceph_config_secret_patterns | join('|') | quote }} {{ item | quote }}; then
-      echo secret
-    else
-      echo normal
-    fi
+  - ceph_config
+- name: Ceph config 민감정보 패턴 조회
+  ansible.builtin.shell: "set -euo pipefail\nif [ ! -f {{ item | quote }} ]; then\n  echo absent\n  exit 0\nfi\n\
+    if grep -Eiq {{ ceph_config_secret_patterns | join('|') | quote }} {{ item | quote }}; then\n  echo secret\n\
+    else\n  echo normal\nfi\n"
   args:
     executable: /bin/bash
-  loop: "{{ ceph_config_files }}"
+  loop: '{{ ceph_config_files }}'
   register: ceph_config_secret_scan
   changed_when: false
   when: enable_ceph_config_permission_check | bool
   tags:
-    - ceph_config
-
-- name: "Ceph config report"
+  - ceph_config
+  check_mode: false
+- name: Ceph config report
   ansible.builtin.debug:
     msg:
-      - "files={{ ceph_config_files | join(',') }}"
-      - "default_mode={{ ceph_config_default_mode }}"
-      - "secret_mode={{ ceph_config_secret_mode }}"
-      - "{{ ceph_config_secret_scan.results | default([]) | map(attribute='stdout') | list }}"
-      - "mode={{ security_action_mode }}"
+    - files={{ ceph_config_files | join(',') }}
+    - default_mode={{ ceph_config_default_mode }}
+    - secret_mode={{ ceph_config_secret_mode }}
+    - '{{ ceph_config_secret_scan.results | default([]) | map(attribute=''stdout'') | list }}'
+    - mode={{ security_action_mode }}
   when: enable_ceph_config_permission_check | bool
   tags:
-    - ceph_config
-
-- name: "Ceph config 권한 적용"
+  - ceph_config
+- name: Ceph config 권한 적용
   ansible.builtin.file:
-    path: "{{ item.item }}"
-    owner: "{{ ceph_config_owner }}"
-    group: "{{ ceph_config_group }}"
-    mode: "{{ ceph_config_secret_mode if item.stdout == 'secret' else ceph_config_default_mode }}"
+    path: '{{ item.item }}'
+    owner: '{{ ceph_config_owner }}'
+    group: '{{ ceph_config_group }}'
+    mode: '{{ ceph_config_secret_mode if item.stdout == ''secret'' else ceph_config_default_mode }}'
     state: file
-  loop: "{{ ceph_config_secret_scan.results | default([]) }}"
+  loop: '{{ ceph_config_secret_scan.results | default([]) }}'
   become: true
   when:
-    - enable_ceph_config_permission_check | bool
-    - security_action_mode == 'enforce'
-    - item.stdout != 'absent'
+  - enable_ceph_config_permission_check | bool
+  - security_action_mode == 'enforce'
+  - item.stdout != 'absent'
+  - apply_policy | default(false) | bool
   tags:
-    - ceph_config
+  - ceph_config

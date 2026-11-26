@@ -49,11 +49,9 @@ enable_ceph_admin_user_policy: true
 ceph_admin_users:
   - cephadmin
   - ansible
-ceph_admin_groups:
-  - sudo
-ceph_admin_sudo_nopasswd: true
-ceph_admin_sudo_commands:
-  - ALL
+ceph_admin_groups: []
+ceph_admin_sudo_nopasswd: false
+ceph_admin_sudo_commands: []
 ceph_disable_root_ssh: false
 ceph_admin_sudoers_path: /etc/sudoers.d/90-ceph-admin-users
 
@@ -77,3 +75,7 @@ ceph_patch_packages:
   - ceph-osd
   - ceph-mon
   - ceph-mgr
+
+ceph_authorized_keys_replace_confirmed: false
+ceph_admin_allow_full_sudo: false
+ceph_authorized_keys_required: {}

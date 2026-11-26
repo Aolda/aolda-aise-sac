@@ -1,0 +1,88 @@
+---
+- name: Real client keyring deployment and repeated convergence
+  hosts: baseline_test
+  gather_facts: false
+  become: true
+  vars:
+    lab: /var/lib/aise-ceph-test
+  pre_tasks:
+  - name: Require explicit lab confirmation
+    ansible.builtin.assert:
+      that:
+      - baseline_test_confirmed | default(false) | bool
+      - not ansible_check_mode
+  - name: Read lab identifier
+    ansible.builtin.slurp:
+      src: '{{ lab }}/fsid'
+    register: lab_id
+  - name: Read cluster identifier
+    ansible.builtin.command: ceph fsid
+    changed_when: false
+    register: cluster_id
+  - name: Refuse other clusters
+    ansible.builtin.assert:
+      that: (lab_id.content | b64decode | trim) == (cluster_id.stdout | trim)
+  tasks:
+  - name: Test deployment without exposing secret material
+    block:
+    - name: Read actual limited client credential
+      ansible.builtin.slurp:
+        src: '{{ lab }}/client.keyring'
+      register: client_credential
+      no_log: true
+    - name: Require unused deployment target
+      ansible.builtin.stat:
+        path: '{{ lab }}/deployed.keyring'
+      register: existing_target
+    - name: Refuse to overwrite pre-existing test credential
+      ansible.builtin.assert:
+        that: not existing_target.stat.exists
+    - name: Deploy real client key using production role
+      ansible.builtin.include_role: &auth_role
+        name: ceph-security-baseline
+        tasks_from: auth
+      vars: &deploy
+        apply_policy: true
+        security_action_mode: enforce
+        enable_cephx_enforcement: true
+        ceph_auth_report_only: false
+        ceph_deploy_keyrings: true
+        ceph_clients:
+        - keyring: '{{ lab }}/deployed.keyring'
+          keyring_content: '{{ client_credential.content | b64decode }}'
+    - name: Observe deployed file metadata
+      ansible.builtin.stat:
+        path: '{{ lab }}/deployed.keyring'
+        get_checksum: false
+      register: deployed_first
+    - name: Repeat real client deployment
+      ansible.builtin.include_role: *auth_role
+      vars: *deploy
+    - name: Observe repeated file metadata
+      ansible.builtin.stat:
+        path: '{{ lab }}/deployed.keyring'
+        get_checksum: false
+      register: deployed_repeat
+    - name: Confirm correct permissions and no repeated file write
+      ansible.builtin.assert:
+        that:
+        - deployed_first.stat.mode == '0640'
+        - deployed_first.stat.pw_name == 'root'
+        - deployed_first.stat.gr_name == 'ceph'
+        - deployed_first.stat.ctime == deployed_repeat.stat.ctime
+        - deployed_first.stat.inode == deployed_repeat.stat.inode
+    - name: Read real object with deployed credential
+      ansible.builtin.command:
+        argv: [timeout, '30', rados, -n, client.aise-test, -k, '{{ lab }}/deployed.keyring', -p, aise-security-test, get, baseline-probe, '{{ lab }}/deployed-output']
+      changed_when: false
+    - name: Verify credential authorizes correct object data
+      ansible.builtin.command:
+        argv: [cmp, '{{ lab }}/input', '{{ lab }}/deployed-output']
+      changed_when: false
+    always:
+    - name: Remove test-created deployed credential and output
+      ansible.builtin.file:
+        path: '{{ lab }}/{{ item }}'
+        state: absent
+      loop: [deployed.keyring, deployed-output]
+      when: existing_target is defined and not (existing_target.stat.exists | default(true))

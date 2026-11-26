@@ -1,0 +1,25 @@
+---
+- name: KVM 로그 백업 실행 식별자 확인
+  ansible.builtin.assert:
+    that:
+    - kvm_log_backup_id is match('^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$')
+    fail_msg: 백업 실행마다 안전한 kvm_log_backup_id를 지정하십시오.
+  when:
+  - kvm_log_backup_enabled | bool
+  - kvm_log_backup_run | bool
+  tags:
+  - kvm_log_backup
+- name: KVM 로그 백업 실행
+  kvm_log_snapshot:
+    patterns: '{{ kvm_log_paths }}'
+    destination: '{{ kvm_log_backup_dest }}'
+    snapshot_id: '{{ kvm_log_backup_id }}'
+  when:
+  - enable_kvm_log_backup | bool
+  - kvm_log_backup_enabled | bool
+  - kvm_log_backup_run | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  tags:
+  - kvm_log_backup
+  register: kvm_snapshot_result

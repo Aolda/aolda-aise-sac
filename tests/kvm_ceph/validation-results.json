@@ -1,0 +1,202 @@
+{
+  "local_tests": {
+    "run": 63,
+    "passed": 63
+  },
+  "representative_mutations": {
+    "registered": 12,
+    "detected": 12,
+    "cases": [
+      {
+        "stage": 1,
+        "defect": "numeric-days",
+        "status": "detected"
+      },
+      {
+        "stage": 1,
+        "defect": "protected-account",
+        "status": "detected"
+      },
+      {
+        "stage": 1,
+        "defect": "implicit-key-replacement",
+        "status": "detected"
+      },
+      {
+        "stage": 1,
+        "defect": "remove-management-key",
+        "status": "detected"
+      },
+      {
+        "stage": 2,
+        "defect": "duplicate-snapshot",
+        "status": "detected"
+      },
+      {
+        "stage": 2,
+        "defect": "snapshot-check-writes",
+        "status": "detected"
+      },
+      {
+        "stage": 2,
+        "defect": "repeat-ceph-auth-set",
+        "status": "detected"
+      },
+      {
+        "stage": 3,
+        "defect": "ssh-check-writes",
+        "status": "detected"
+      },
+      {
+        "stage": 3,
+        "defect": "ignore-effective-ssh",
+        "status": "detected"
+      },
+      {
+        "stage": 3,
+        "defect": "parallel-maintenance",
+        "status": "detected"
+      },
+      {
+        "stage": 4,
+        "defect": "unknown-is-compliant",
+        "status": "detected"
+      },
+      {
+        "stage": 4,
+        "defect": "unverified-apply-success",
+        "status": "detected"
+      }
+    ]
+  },
+  "remote_report": {
+    "ok": 63,
+    "changed": 0,
+    "failed": 0,
+    "skipped": 72
+  },
+  "remote_fixtures": {
+    "ok": 89,
+    "changed_including_setup_cleanup": 20,
+    "failed": 0,
+    "expected_rejection": 1
+  },
+  "remote_scenario_types": {
+    "registered": 16,
+    "fully_executed": 10,
+    "fully_passed": 10,
+    "partially_executed": 1,
+    "not_executed": 5,
+    "partial_note": "Actual CephX configuration and client IO passed; none-to-cephx service transition not executed"
+  },
+  "limits": [
+    "No multi-node Ceph quorum/failover test",
+    "No none-to-cephx service transition",
+    "No package update or reboot",
+    "No live firewall or SELinux mutation",
+    "No running guest disruption test",
+    "No test of local configuration overriding central Ceph settings"
+  ],
+  "remote_ceph": {
+    "version": "19.2.3",
+    "topology": {
+      "mon": 1,
+      "mgr": 1,
+      "osd": 1,
+      "backing": "3 GiB regular file",
+      "bind": "127.0.0.1"
+    },
+    "packages": {
+      "new": 47,
+      "upgraded": 0,
+      "removed": 0
+    },
+    "runs": {
+      "live-final": {
+        "returncode": 0,
+        "ok": 74,
+        "changed": 8,
+        "unreachable": 0,
+        "failed": 0,
+        "skipped": 13,
+        "rescued": 0,
+        "ignored": 0
+      },
+      "keyring": {
+        "returncode": 0,
+        "ok": 33,
+        "changed": 2,
+        "unreachable": 0,
+        "failed": 0,
+        "skipped": 2,
+        "rescued": 0,
+        "ignored": 0
+      },
+      "check-seed": {
+        "returncode": 0,
+        "ok": 9,
+        "changed": 2,
+        "unreachable": 0,
+        "failed": 0,
+        "skipped": 0,
+        "rescued": 0,
+        "ignored": 0
+      },
+      "check": {
+        "returncode": 0,
+        "ok": 41,
+        "changed": 1,
+        "unreachable": 0,
+        "failed": 0,
+        "skipped": 37,
+        "rescued": 0,
+        "ignored": 0
+      },
+      "check-verify": {
+        "returncode": 0,
+        "ok": 7,
+        "changed": 0,
+        "unreachable": 0,
+        "failed": 0,
+        "skipped": 2,
+        "rescued": 0,
+        "ignored": 0
+      },
+      "full-first": {
+        "returncode": 0,
+        "ok": 44,
+        "changed": 2,
+        "unreachable": 0,
+        "failed": 0,
+        "skipped": 34,
+        "rescued": 0,
+        "ignored": 0
+      },
+      "full-repeat": {
+        "returncode": 0,
+        "ok": 43,
+        "changed": 0,
+        "unreachable": 0,
+        "failed": 0,
+        "skipped": 35,
+        "rescued": 0,
+        "ignored": 0
+      },
+      "report": {
+        "returncode": 0,
+        "ok": 37,
+        "changed": 0,
+        "unreachable": 0,
+        "failed": 0,
+        "skipped": 41,
+        "rescued": 0,
+        "ignored": 0
+      }
+    },
+    "health": "HEALTH_WARN",
+    "health_checks": [
+      "POOL_NO_REDUNDANCY"
+    ],
+    "new_mutation_rate_measured": false
+  }
+}

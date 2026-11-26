@@ -30,7 +30,7 @@ ansible-playbook playbooks/security_baseline.yml -i inventory/hosts.yml --limit 
 |항목|변경 후 동작|
 |---|---|
 |로그인 이력 없음|계정 생성 시점을 알 수 없으므로 자동 9999일 잠금 대신 검토 대상으로 보고|
-|수동 잠금 스크립트|기본 비활성. 고정 경로의 정책 대상만 허용하며 비밀번호 잠금과 nologin 셸을 함께 적용. 실행 시 자동 삭제하지 않음|
+|수동 잠금 스크립트|기본 비활성. 기본 /run의 고정 경로에서 정책 대상만 허용하며 비밀번호 잠금과 nologin 셸을 함께 적용. 실행 시 자동 삭제하지 않음|
 |Ceph 관리자 기본값|sudo 그룹 자동 추가·비밀번호 없는 ALL 권한 기본 제공을 제거. 명시적 명령 목록이 없으면 관리자 적용 실패|
 |Ceph 전체 권한|`ceph_admin_allow_full_sudo=true`인 경우에만 ALL/sudo/wheel 허용. 기존 그룹도 조회하며 기존 운영자 권한을 임의 회수하지 않음|
 |authorized_keys|기본 추가·보존. 전체 교체는 `ceph_purge_unmanaged_keys=true`와 `ceph_authorized_keys_replace_confirmed=true` 필요|
@@ -66,3 +66,5 @@ KVM/Ceph 보고서는 정책 판정과 작업 실행 기록을 분리합니다. 
 현재 자동 비교 근거를 제공하는 항목은 KVM 미사용/퇴직 계정 검토와 SSH 연결 응답 설정, Ceph keyring·설정 파일 권한과 CephX입니다. 계정 잠금 성공이 미사용 계정 검토 완료를 의미하지는 않습니다. 셸 TMOUT, UFW 전체 유효 규칙, Ceph 전체 sudo 권한 등 종합 판정이 없는 항목은 점검 불가로 남습니다. 개별 작업 성공으로 이 상태를 충족으로 바꾸지 않습니다.
 
 실제 KVM·Ceph 서버, 네트워크 연결, 재부팅, 다중 노드 실패 복구는 별도 시험 환경에서 검증해야 합니다. 등록 시험 목록과 결함 검출률 측정은 [시험 안내](kvm-ceph-testing.md)를 참고하십시오.
+
+실제로 수행한 범위와 미수행 실환경 유형은 [검증 결과](kvm-ceph-validation-results.md)를 참고하십시오.

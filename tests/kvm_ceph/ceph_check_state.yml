@@ -1,0 +1,49 @@
+---
+- name: Prepare or verify drift for a separate CLI check-mode invocation
+  hosts: baseline_test
+  gather_facts: false
+  become: true
+  pre_tasks:
+  - name: Require explicit lab operation
+    ansible.builtin.assert:
+      that:
+      - baseline_test_confirmed | default(false) | bool
+      - not ansible_check_mode
+      - ceph_check_operation | default('') in ['seed', 'verify']
+  - name: Read lab identifier
+    ansible.builtin.slurp:
+      src: /var/lib/aise-ceph-test/fsid
+    register: lab_id
+  - name: Read cluster identifier
+    ansible.builtin.command: ceph fsid
+    changed_when: false
+    register: cluster_id
+  - name: Refuse other clusters
+    ansible.builtin.assert:
+      that: (lab_id.content | b64decode | trim) == (cluster_id.stdout | trim)
+  tasks:
+  - name: Seed equivalent authentication list drift
+    ansible.builtin.command:
+      argv: [ceph, config, set, mon, auth_client_required, 'cephx,cephx']
+    changed_when: true
+    when: ceph_check_operation == 'seed'
+  - name: Seed restrictive configuration permission drift
+    ansible.builtin.file:
+      path: /etc/ceph/ceph.conf
+      mode: '0600'
+    when: ceph_check_operation == 'seed'
+  - name: Read authentication configuration
+    ansible.builtin.command:
+      argv: [ceph, config, get, mon, auth_client_required]
+    changed_when: false
+    register: auth_current
+  - name: Read configuration permissions
+    ansible.builtin.stat:
+      path: /etc/ceph/ceph.conf
+      get_checksum: false
+    register: config_current
+  - name: Require preserved drift
+    ansible.builtin.assert:
+      that:
+      - auth_current.stdout | trim == 'cephx,cephx'
+      - config_current.stat.mode == '0600'

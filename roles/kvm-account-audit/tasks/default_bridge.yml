@@ -80,6 +80,7 @@
   - kvm_default_bridge_action in ['disable', 'destroy', 'undefine']
   tags:
   - kvm_default_bridge
+  register: kvm_network_autostart_change
 - name: KVM 기본 네트워크 중지
   ansible.builtin.command:
     argv:
@@ -97,6 +98,7 @@
   - kvm_default_bridge_action in ['destroy', 'undefine']
   tags:
   - kvm_default_bridge
+  register: kvm_network_stop_change
 - name: KVM 기본 네트워크 정의 삭제
   ansible.builtin.command:
     argv:
@@ -113,3 +115,4 @@
   - kvm_default_bridge_action == 'undefine'
   tags:
   - kvm_default_bridge
+  register: kvm_network_undefine_change

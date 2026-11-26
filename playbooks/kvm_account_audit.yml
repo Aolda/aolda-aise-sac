@@ -8,7 +8,7 @@
   become: yes
   vars:
     apply_policy: false
-  check_mode: "{{ not (apply_policy | bool) }}"
+  check_mode: "{{ ansible_check_mode or not (apply_policy | bool) }}"
   
   roles:
     - kvm-account-audit

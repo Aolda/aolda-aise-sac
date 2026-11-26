@@ -68,7 +68,7 @@
     name: '{{ item }}={{ ceph_target_version }}'
     state: present
     update_cache: true
-    allow_downgrade: true
+    allow_downgrade: '{{ ceph_allow_package_downgrade | bool }}'
   loop: '{{ ceph_patch_packages }}'
   become: true
   register: ceph_specific_patch_result

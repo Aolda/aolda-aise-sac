@@ -26,7 +26,7 @@ kvm_account_target_groups:
   - qemu
   - libvirt
 kvm_account_action_log_path: /var/log/kvm_account_audit_actions.log
-kvm_account_manual_script_enabled: true
+kvm_account_manual_script_enabled: false
 kvm_account_manual_script_dir: /tmp
 
 enable_kvm_session_timeout: true
@@ -80,3 +80,8 @@ kvm_target_package_versions: {}
 kvm_allow_reboot: false
 kvm_drain_compute_before_patch: true
 kvm_patch_batch_size: 1
+
+kvm_log_backup_run: false
+kvm_log_backup_id: ""
+
+kvm_allow_package_downgrade: false

@@ -27,35 +27,26 @@
   - apply_policy | default(false) | bool
   tags:
   - kvm_log_backup
-- name: KVM 로그 백업 디렉터리 생성
-  ansible.builtin.file:
-    path: '{{ kvm_log_backup_dest }}'
-    state: directory
-    owner: root
-    group: root
-    mode: '0750'
-  become: true
+- name: KVM 로그 백업 실행 식별자 확인
+  ansible.builtin.assert:
+    that:
+    - kvm_log_backup_id is match('^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$')
+    fail_msg: 백업 실행마다 안전한 kvm_log_backup_id를 지정하십시오.
   when:
-  - enable_kvm_log_backup | bool
   - kvm_log_backup_enabled | bool
-  - security_action_mode == 'enforce'
-  - apply_policy | default(false) | bool
+  - kvm_log_backup_run | bool
   tags:
   - kvm_log_backup
 - name: KVM 로그 백업 실행
-  ansible.builtin.shell: "set -euo pipefail\nbackup_dir=\"{{ kvm_log_backup_dest }}/{{ inventory_hostname }}-$(date\
-    \ +%Y%m%d%H%M%S)\"\nmkdir -p \"$backup_dir\"\nfor path_glob in {{ kvm_log_paths | map('quote') | join(' ') }};\
-    \ do\n  for log_file in $path_glob; do\n    [ -f \"$log_file\" ] || continue\n    cp -a \"$log_file\" \"$backup_dir\"\
-    /\n  done\ndone\nprintf '%s\\n' \"$backup_dir\"\n"
-  args:
-    executable: /bin/bash
-  register: kvm_log_backup_result
-  changed_when: true
-  become: true
+  kvm_log_snapshot:
+    patterns: '{{ kvm_log_paths }}'
+    destination: '{{ kvm_log_backup_dest }}'
+    snapshot_id: '{{ kvm_log_backup_id }}'
   when:
   - enable_kvm_log_backup | bool
   - kvm_log_backup_enabled | bool
-  - security_action_mode == 'enforce'
+  - kvm_log_backup_run | bool
   - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
   tags:
   - kvm_log_backup

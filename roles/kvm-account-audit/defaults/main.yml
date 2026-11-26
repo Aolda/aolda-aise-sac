@@ -27,7 +27,7 @@ kvm_account_target_groups:
   - libvirt
 kvm_account_action_log_path: /var/log/kvm_account_audit_actions.log
 kvm_account_manual_script_enabled: false
-kvm_account_manual_script_dir: /tmp
+kvm_account_manual_script_dir: /run
 
 enable_kvm_session_timeout: true
 ssh_client_alive_interval: 300

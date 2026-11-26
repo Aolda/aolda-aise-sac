@@ -53,6 +53,13 @@ class SshTransactionTests(unittest.TestCase):
         self.assertTrue(ssh.apply_dropin(self.path, "new", {}, fail, check=True))
         self.assertEqual(self.path.read_text(), "old config")
 
+    def test_same_content_permission_drift_is_repaired(self):
+        self.path.write_text("same config")
+        self.path.chmod(0o777)
+        self.assertTrue(ssh.apply_dropin(self.path, "same config", {"clientaliveinterval": 300}, self.valid))
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o644)
+        self.assertFalse(ssh.apply_dropin(self.path, "same config", {"clientaliveinterval": 300}, self.valid))
+
     def test_symlink_target_rejected(self):
         link = self.path.parent / "link"
         link.symlink_to(self.path)

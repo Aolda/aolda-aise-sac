@@ -77,9 +77,9 @@ class SafetyContracts(unittest.TestCase):
                 for task in yaml.safe_load(path.read_text()): yield path, task
 
     def test_every_mutation_requires_apply_policy(self):
-        mutations = {"file", "template", "copy", "apt", "user", "group", "reboot", "command", "shell"}
+        mutations = {"file", "template", "copy", "apt", "user", "group", "reboot", "command", "shell", "lineinfile", "ufw"}
         for path, task in self.tasks():
-            action = next((k for k in task if k.startswith("ansible.builtin.")), "")
+            action = next((k for k in task if k.startswith(("ansible.builtin.", "community.general."))), "")
             if action.split(".")[-1] not in mutations or task.get("changed_when") is False:
                 continue
             with self.subTest(path=path.name, task=task["name"]):

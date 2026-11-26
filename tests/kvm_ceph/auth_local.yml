@@ -1,0 +1,15 @@
+---
+- name: Exercise production Ceph authentication tasks with a stateful command substitute
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    PATH: "{{ fake_bin }}:{{ lookup('env', 'PATH') }}"
+    AISE_FAKE_STATE: "{{ fake_state }}"
+    AISE_FAKE_WRITES: "{{ fake_writes }}"
+    AISE_FAKE_FAIL: "{{ fake_fail }}"
+  tasks:
+    - name: Run production authentication tasks
+      ansible.builtin.include_role:
+        name: ceph-security-baseline
+        tasks_from: auth

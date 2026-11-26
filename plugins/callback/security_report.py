@@ -96,6 +96,7 @@ class CallbackModule(CallbackBase):
         self.os_by_host = OrderedDict()
         self.roles_seen = []
         self.results = OrderedDict()
+        self.policy_evidence = OrderedDict()
 
     def set_options(self, task_keys=None, var_options=None, direct=None):
         super().set_options(task_keys=task_keys, var_options=var_options, direct=direct)
@@ -172,6 +173,20 @@ class CallbackModule(CallbackBase):
         item = raw.get("_ansible_item_label", raw.get("item"))
         if item is not None and not isinstance(item, (dict, list)):
             task_name = f"{task_name} [{item}]"
+
+        if role in {"kvm-account-audit", "ceph-security-baseline"}:
+            evidence = raw.get("ansible_facts", {}).get("security_policy_evidence", {})
+            if isinstance(evidence, dict) and not raw.get("_ansible_no_log"):
+                for policy, entry in evidence.items():
+                    if isinstance(entry, dict):
+                        self.policy_evidence[(role, host, policy)] = dict(entry)
+            if status in {"failed", "unreachable"}:
+                tags = getattr(task, "tags", [])
+                for key, entry in self.policy_evidence.items():
+                    if key[:2] == (role, host) and key[2] in tags:
+                        entry["status"] = "failed"
+            if raw.get("_ansible_no_log"):
+                task_name = task.get_name().strip()
 
         key = (role, task_name, host)
         changed = bool(raw.get("changed", False))
@@ -266,6 +281,8 @@ class CallbackModule(CallbackBase):
         return len(rows), len(completed), len(needs_action), len(successful), len(failed)
 
     def _render(self, role, rows, filename):
+        if role in {"kvm-account-audit", "ceph-security-baseline"}:
+            return self._render_baseline(role, rows, filename)
         total, completed, needed, successful, failed = self._statistics(rows)
         inventory = ", ".join(map(str, self.inventory_sources)) or "-"
         targets = ", ".join(self.hosts_seen or self.target_patterns) or "-"
@@ -342,3 +359,25 @@ class CallbackModule(CallbackBase):
         lines.append("")
 
         return "\n".join(lines).rstrip() + "\n"
+
+    def _render_baseline(self, role, rows, filename):
+        labels = {"compliant": "기준 충족", "needs_action": "조치 필요", "applied": "적용 후 충족",
+                  "failed": "점검/적용 실패", "unknown": "점검 불가", "not_run": "미실행"}
+        evidence = [(key, value) for key, value in self.policy_evidence.items() if key[0] == role]
+        counts = {status: sum(value.get("status") == status for _, value in evidence) for status in labels}
+        lines = [f"# {self.report_title}", "", f"역할: {role}", f"보고서: {filename}", "",
+                 "정책 판정은 관측값과 목표값의 비교 결과입니다. 작업 성공·변경 표시는 기준 충족을 뜻하지 않습니다.",
+                 "점검 불가는 미지원·조회 실패 또는 최종 상태 판정 미구현을 포함합니다.", "",
+                 "## 정책 판정", "", "|상태|항목 수|", "|---|---:|"]
+        for status, label in labels.items(): lines.append(f"|{label}|{counts[status]}|")
+        if not evidence: lines += ["", "수집된 정책 근거가 없습니다. 보안 준수 여부는 미확인입니다."]
+        lines += ["", "|정책·호스트|판정|관측값|목표값|", "|---|---|---|---|"]
+        for (_, host, policy), entry in evidence:
+            values = [f"{entry.get('name', policy)} ({host})", labels.get(entry.get("status"), "점검 불가"),
+                      entry.get("observed"), entry.get("expected")]
+            lines.append("|" + "|".join(_escape_cell(value) for value in values) + "|")
+        lines += ["", "## 작업 실행 기록", "", "|작업·호스트|실행 상태|", "|---|---|"]
+        for row in rows:
+            state = "실패" if row["failed"] else "미실행" if row["skipped"] else "변경 또는 변경 예정" if row["changed"] else "성공(기준 충족 판정 아님)"
+            lines.append(f"|{_escape_cell(row['task'])} ({_escape_cell(row['host'])})|{state}|")
+        return "\n".join(lines) + "\n"

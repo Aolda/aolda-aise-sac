@@ -1,4 +1,14 @@
 ---
+- name: kvm_accounts 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      kvm_accounts:
+        name: kvm_accounts
+        status: '{{ ''unknown'' if (enable_kvm_account_hardening | bool) else ''not_run'' }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - kvm_accounts
 - name: KVM 계정 정책 변수 호환성 설정
   ansible.builtin.set_fact:
     kvm_accounts_effective_target_groups: '{{ kvm_account_audit.target_groups | default(kvm_account_target_groups)
@@ -101,6 +111,14 @@
     - report=security_report_callback
     - locked={{ locked_accounts | default([]) | join(',') }}
     - deleted={{ deleted_accounts | default([]) | join(',') }}
+  when: enable_kvm_account_hardening | bool
+  tags:
+  - kvm_accounts
+- name: KVM 계정 정책 근거 기록
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      kvm_accounts: '{{ ''미사용·퇴직 계정 검토'' | security_assessment(kvm_account_scan.inactive | map(attribute=''name'')
+        | list, [], available=kvm_account_scan.unknown | length == 0) }}'
   when: enable_kvm_account_hardening | bool
   tags:
   - kvm_accounts

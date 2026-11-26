@@ -1,4 +1,39 @@
 ---
+- name: 보안 정책 근거 초기화
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      kvm_accounts:
+        name: kvm_accounts
+        status: not_run
+        observed: null
+        expected: null
+      kvm_session_timeout:
+        name: kvm_session_timeout
+        status: not_run
+        observed: null
+        expected: null
+      kvm_ip_restrict:
+        name: kvm_ip_restrict
+        status: not_run
+        observed: null
+        expected: null
+      kvm_default_bridge:
+        name: kvm_default_bridge
+        status: not_run
+        observed: null
+        expected: null
+      kvm_log_backup:
+        name: kvm_log_backup
+        status: not_run
+        observed: null
+        expected: null
+      kvm_patch:
+        name: kvm_patch
+        status: not_run
+        observed: null
+        expected: null
+  tags:
+  - always
 - name: kvm 실행 환경 판정
   ansible.builtin.set_fact:
     kvm_platform_supported: '{{ ansible_facts.distribution | default('''') == ''Ubuntu'' and ansible_facts.distribution_version

@@ -1,4 +1,14 @@
 ---
+- name: kvm_session_timeout 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      kvm_session_timeout:
+        name: kvm_session_timeout
+        status: '{{ ''unknown'' if (enable_kvm_session_timeout | bool) else ''not_run'' }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - kvm_session_timeout
 - name: KVM SSH 설정 디렉터리 생성
   ansible.builtin.file:
     path: '{{ sshd_security_config_path | dirname }}'
@@ -53,6 +63,27 @@
     - apply_shell_timeout={{ apply_shell_timeout }}
     - shell_timeout={{ shell_timeout }}
     - mode={{ security_action_mode }}
+  when: enable_kvm_session_timeout | bool
+  tags:
+  - kvm_session_timeout
+- name: KVM SSH 최종 유효 설정 조회
+  ansible.builtin.command:
+    argv:
+    - /usr/sbin/sshd
+    - -T
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  register: kvm_sshd_effective
+  when: enable_kvm_session_timeout | bool
+  tags:
+  - kvm_session_timeout
+- name: KVM SSH 유효 설정 근거 기록
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      kvm_session_timeout: '{{ ''SSH 연결 응답 확인 설정 (셸 TMOUT은 별도 검증 필요)'' | security_assessment(kvm_sshd_effective.stdout
+        | security_sshd_observed, {''clientaliveinterval'': ssh_client_alive_interval | string, ''clientalivecountmax'':
+        ssh_client_alive_count_max | string}, available=kvm_sshd_effective.rc == 0) }}'
   when: enable_kvm_session_timeout | bool
   tags:
   - kvm_session_timeout

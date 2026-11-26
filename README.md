@@ -300,3 +300,7 @@ ANSIBLE_HOME=.ansible molecule verify -s openstack-component
 - DB 계정/권한 변경은 모니터링 계정, 백업 계정, 애플리케이션 계정 예외를 먼저 정리합니다.
 - Docker daemon 설정 변경은 컨테이너 재시작 영향을 확인한 뒤 적용합니다.
 - validate 실패는 drift 또는 선행 조건 누락을 의미하므로, 실패 task의 assert 메시지와 대상 설정 파일을 먼저 확인합니다.
+
+## KVM·QEMU·Ceph 기존 기능 보완
+
+기존 역할의 실행 계약·멱등성·패치 제한은 [운영 안내](docs/kvm-ceph-hardening.md), 시험 범위와 결함 검출률은 [시험 안내](docs/kvm-ceph-testing.md)를 참고합니다. 실제 환경 검증과 신규 기능 확장은 별도입니다.

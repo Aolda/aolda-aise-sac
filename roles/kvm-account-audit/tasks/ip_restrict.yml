@@ -1,4 +1,14 @@
 ---
+- name: kvm_ip_restrict 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      kvm_ip_restrict:
+        name: kvm_ip_restrict
+        status: '{{ ''unknown'' if (enable_kvm_ip_restrict | bool) else ''not_run'' }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - kvm_ip_restrict
 - name: KVM IP 접근 제한 report
   ansible.builtin.debug:
     msg:

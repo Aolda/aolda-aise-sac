@@ -1,4 +1,44 @@
 ---
+- name: 보안 정책 근거 초기화
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_keyring:
+        name: ceph_keyring
+        status: not_run
+        observed: null
+        expected: null
+      ceph_ssh_keys:
+        name: ceph_ssh_keys
+        status: not_run
+        observed: null
+        expected: null
+      ceph_config:
+        name: ceph_config
+        status: not_run
+        observed: null
+        expected: null
+      ceph_auth:
+        name: ceph_auth
+        status: not_run
+        observed: null
+        expected: null
+      ceph_admin_user:
+        name: ceph_admin_user
+        status: not_run
+        observed: null
+        expected: null
+      ceph_selinux:
+        name: ceph_selinux
+        status: not_run
+        observed: null
+        expected: null
+      ceph_patch:
+        name: ceph_patch
+        status: not_run
+        observed: null
+        expected: null
+  tags:
+  - always
 - name: ceph 실행 환경 판정
   ansible.builtin.set_fact:
     ceph_platform_supported: '{{ ansible_facts.distribution | default('''') == ''Ubuntu'' and ansible_facts.distribution_version

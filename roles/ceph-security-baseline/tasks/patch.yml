@@ -1,4 +1,15 @@
 ---
+- name: ceph_patch 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_patch:
+        name: ceph_patch
+        status: '{{ ''unknown'' if (enable_ceph_patch | bool or ceph_patch_mode == ''report'') else ''not_run''
+          }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - ceph_patch
 - name: ceph 패치 모드 및 유지보수 조건 확인
   ansible.builtin.assert:
     that:

@@ -1,4 +1,14 @@
 ---
+- name: ceph_admin_user 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_admin_user:
+        name: ceph_admin_user
+        status: '{{ ''unknown'' if (enable_ceph_admin_user_policy | bool) else ''not_run'' }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - ceph_admin_user
 - name: Ceph 관리자 현재 그룹 조회
   ansible.builtin.command:
     argv:

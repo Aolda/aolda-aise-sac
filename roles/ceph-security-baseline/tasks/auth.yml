@@ -94,3 +94,32 @@
   - ceph_auth
   no_log: true
   diff: false
+- name: CephX 적용 후 유효값 조회
+  ansible.builtin.command:
+    argv:
+    - ceph
+    - config
+    - get
+    - mon
+    - '{{ item }}'
+  loop: '{{ ceph_auth_targets | list }}'
+  register: ceph_auth_verified
+  changed_when: false
+  check_mode: false
+  when: &id001
+  - enable_cephx_enforcement | bool
+  - not ceph_auth_report_only | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - not ansible_check_mode
+  tags:
+  - ceph_auth
+- name: CephX 적용 후 목표 일치 검증
+  ansible.builtin.assert:
+    that:
+    - item.rc == 0
+    - item.stdout | trim == ceph_auth_targets[item.item]
+  loop: '{{ ceph_auth_verified.results | default([]) }}'
+  when: *id001
+  tags:
+  - ceph_auth

@@ -27,6 +27,7 @@
     name: ufw
     state: present
     update_cache: true
+    cache_valid_time: 3600
   become: true
   when:
   - enable_kvm_ip_restrict | bool

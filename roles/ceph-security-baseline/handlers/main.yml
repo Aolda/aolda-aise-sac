@@ -4,3 +4,8 @@
     name: ssh
     state: reloaded
   become: true
+  notify: Verify SSH connection
+- name: Verify SSH connection
+  ansible.builtin.wait_for_connection:
+    timeout: 30
+  when: not ansible_check_mode

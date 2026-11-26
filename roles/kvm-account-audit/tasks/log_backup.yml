@@ -1,4 +1,23 @@
 ---
+- name: KVM 기존 로그 교체 설정 중복 조회
+  security_logrotate_info:
+    own_config: '{{ kvm_logrotate_config_path }}'
+    patterns: '{{ kvm_log_paths }}'
+  register: kvm_logrotate_conflicts
+  when: enable_kvm_log_backup | bool
+  tags:
+  - kvm_log_backup
+- name: KVM 중복 로그 교체 설정 적용 방지
+  ansible.builtin.assert:
+    that:
+    - kvm_logrotate_conflicts.conflicts | length == 0
+    fail_msg: 기존 로그 교체 설정과 대상 경로가 겹칩니다. 중복을 해소한 후 적용하십시오.
+  when:
+  - enable_kvm_log_backup | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  tags:
+  - kvm_log_backup
 - name: KVM 로그 관리 report
   ansible.builtin.debug:
     msg:

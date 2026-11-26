@@ -81,3 +81,9 @@ ceph_admin_allow_full_sudo: false
 ceph_authorized_keys_required: {}
 
 ceph_allow_package_downgrade: false
+
+# Explicitly identify a supported package-managed host before enforcement.
+ceph_installation_layout: unknown
+ceph_patch_maintenance_confirmed: false
+ceph_patch_precheck_commands: []
+ceph_patch_postcheck_commands: []

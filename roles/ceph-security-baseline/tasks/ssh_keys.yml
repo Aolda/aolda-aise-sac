@@ -1,4 +1,10 @@
 ---
+- name: Ceph SSH 홈/그룹 조회 결과 초기화
+  ansible.builtin.set_fact:
+    ceph_ssh_user_homes: {}
+    ceph_ssh_user_groups: {}
+  tags:
+  - ceph_ssh_keys
 - name: Ceph SSH 사용자 홈 조회
   ansible.builtin.getent:
     database: passwd
@@ -13,11 +19,15 @@
   ansible.builtin.set_fact:
     ceph_ssh_user_homes: "{{\n  ceph_ssh_user_homes | default({}) | combine({\n    item.item: item.ansible_facts.getent_passwd[item.item][4]\n\
       \  })\n}}"
+    ceph_ssh_user_groups: '{{ ceph_ssh_user_groups | combine({item.item: item.ansible_facts.getent_passwd[item.item][2]})
+      }}'
   loop: '{{ ceph_ssh_user_getent.results | default([]) }}'
   when:
   - enable_ceph_ssh_key_check | bool
   - item.ansible_facts.getent_passwd is defined
   - item.item in item.ansible_facts.getent_passwd
+  - item.ansible_facts.getent_passwd[item.item] is sequence
+  - item.ansible_facts.getent_passwd[item.item] | length > 4
   tags:
   - ceph_ssh_keys
 - name: Ceph SSH key report
@@ -35,7 +45,7 @@
   ansible.builtin.file:
     path: '{{ item.value }}/.ssh'
     owner: '{{ item.key }}'
-    group: '{{ item.key }}'
+    group: '{{ ceph_ssh_user_groups[item.key] }}'
     state: directory
     mode: '{{ ceph_ssh_dir_mode }}'
   loop: '{{ ceph_ssh_user_homes | default({}) | dict2items }}'
@@ -110,7 +120,7 @@
       [])) }}'
     dest: '{{ item.item.value }}/.ssh/authorized_keys'
     owner: '{{ item.item.key }}'
-    group: '{{ item.item.key }}'
+    group: '{{ ceph_ssh_user_groups[item.item.key] }}'
     mode: '{{ ceph_authorized_keys_mode }}'
     backup: true
   loop: '{{ ceph_existing_authorized_keys.results | default([]) }}'

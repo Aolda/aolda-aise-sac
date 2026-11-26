@@ -1,4 +1,8 @@
 ---
+- name: ceph 사전 점검
+  ansible.builtin.import_tasks: preflight.yml
+  tags:
+  - always
 - name: Ceph keyring 권한 정책 포함
   ansible.builtin.import_tasks: keyring.yml
   tags:

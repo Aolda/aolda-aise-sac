@@ -85,3 +85,9 @@ kvm_log_backup_run: false
 kvm_log_backup_id: ""
 
 kvm_allow_package_downgrade: false
+
+# Explicitly identify a supported package-managed host before enforcement.
+kvm_installation_layout: unknown
+kvm_patch_maintenance_confirmed: false
+kvm_patch_precheck_commands: []
+kvm_patch_postcheck_commands: []

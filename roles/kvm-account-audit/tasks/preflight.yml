@@ -1,0 +1,25 @@
+---
+- name: kvm 실행 환경 판정
+  ansible.builtin.set_fact:
+    kvm_platform_supported: '{{ ansible_facts.distribution | default('''') == ''Ubuntu'' and ansible_facts.distribution_version
+      | default('''') == ''24.04'' and kvm_installation_layout == ''host_packages'' }}'
+  tags:
+  - always
+- name: kvm 미지원 환경 적용 차단
+  ansible.builtin.assert:
+    that:
+    - kvm_platform_supported | bool
+    - security_action_mode in ['report', 'enforce', 'delete']
+    fail_msg: Ubuntu 24.04 호스트 패키지 배포만 지원합니다. 실제 설치 방식 확인 후 installation_layout=host_packages를 지정하십시오.
+  when:
+  - apply_policy | default(false) | bool
+  - security_action_mode != 'report'
+  tags:
+  - always
+- name: kvm 실행 환경 보고
+  ansible.builtin.debug:
+    msg:
+      supported: '{{ kvm_platform_supported }}'
+      installation_layout: '{{ kvm_installation_layout }}'
+  tags:
+  - always

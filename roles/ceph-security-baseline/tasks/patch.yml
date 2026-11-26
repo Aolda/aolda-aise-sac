@@ -1,4 +1,20 @@
 ---
+- name: ceph 패치 모드 및 유지보수 조건 확인
+  ansible.builtin.assert:
+    that:
+    - ceph_patch_mode in ['report', 'latest', 'specific_version']
+    - ceph_patch_mode != 'specific_version' or ceph_target_version | length > 0
+    - ceph_patch_mode == 'report' or ceph_patch_maintenance_confirmed | bool
+    - ceph_patch_mode == 'report' or (ansible_play_batch | length == 1)
+    - ceph_patch_mode == 'report' or ceph_patch_precheck_commands | length > 0
+    - ceph_patch_mode == 'report' or ceph_patch_postcheck_commands | length > 0
+    fail_msg: 패치 모드, 명시적 유지보수, 단일 호스트 배치와 사전/사후 점검 명령이 필요합니다. security_only/point_release는 지원하지 않습니다.
+  when:
+  - enable_ceph_patch | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  tags:
+  - ceph_patch
 - name: Ceph health 조회
   ansible.builtin.command:
     argv:
@@ -40,12 +56,28 @@
 - name: Ceph health 기준 확인
   ansible.builtin.assert:
     that:
-    - ceph_patch_health.stdout is search(ceph_patch_health_required)
+    - ceph_patch_health.rc == 0
+    - ceph_patch_health.stdout | trim == ceph_patch_health_required
     fail_msg: 'Ceph health does not satisfy required state: {{ ceph_patch_health_required }}'
   when:
   - enable_ceph_patch | bool
   - security_action_mode == 'enforce'
   - ceph_patch_mode != 'report'
+  - apply_policy | default(false) | bool
+  tags:
+  - ceph_patch
+- name: ceph 유지보수 사전 점검 실행
+  ansible.builtin.command:
+    argv: '{{ item }}'
+  loop: '{{ ceph_patch_precheck_commands }}'
+  changed_when: false
+  check_mode: false
+  when: &id001
+  - enable_ceph_patch | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - ceph_patch_mode != 'report'
+  - not ansible_check_mode
   tags:
   - ceph_patch
 - name: Ceph 패키지 패치 적용
@@ -54,13 +86,14 @@
     state: latest
     update_cache: true
     only_upgrade: true
+    cache_valid_time: 3600
   become: true
   register: ceph_patch_result
   when:
   - enable_ceph_patch | bool
   - security_action_mode == 'enforce'
-  - ceph_patch_mode in ['security_only', 'point_release']
   - apply_policy | default(false) | bool
+  - ceph_patch_mode == 'latest'
   tags:
   - ceph_patch
 - name: Ceph 특정 버전 패치 적용
@@ -69,6 +102,7 @@
     state: present
     update_cache: true
     allow_downgrade: '{{ ceph_allow_package_downgrade | bool }}'
+    cache_valid_time: 3600
   loop: '{{ ceph_patch_packages }}'
   become: true
   register: ceph_specific_patch_result
@@ -98,5 +132,58 @@
   - ceph_allow_reboot | bool
   - ceph_reboot_required.stat.exists | default(false)
   - apply_policy | default(false) | bool
+  - ceph_patch_mode != 'report'
+  - (ceph_patch_result.changed | default(false)) or (ceph_specific_patch_result.changed | default(false))
+  tags:
+  - ceph_patch
+- name: ceph 패치 후 운영 점검
+  ansible.builtin.command:
+    argv: '{{ item }}'
+  loop: '{{ ceph_patch_postcheck_commands }}'
+  changed_when: false
+  check_mode: false
+  when: *id001
+  tags:
+  - ceph_patch
+- name: ceph 적용 패키지 버전 재조회
+  ansible.builtin.command:
+    argv:
+    - dpkg-query
+    - -W
+    - -f=${Package}=${Version}\n
+    - '{{ item }}'
+  loop: '{{ ceph_patch_packages }}'
+  register: ceph_installed_versions
+  changed_when: false
+  check_mode: false
+  when: *id001
+  tags:
+  - ceph_patch
+- name: Ceph 패치 후 클러스터 정상 복귀 확인
+  ansible.builtin.command:
+    argv:
+    - ceph
+    - health
+  register: ceph_post_patch_health
+  changed_when: false
+  check_mode: false
+  until: ceph_post_patch_health.rc == 0 and ceph_post_patch_health.stdout | trim == ceph_patch_health_required
+  retries: 12
+  delay: 10
+  when: *id001
+  tags:
+  - ceph_patch
+- name: ceph 지정 버전 적용 검증
+  ansible.builtin.assert:
+    that:
+    - item.stdout | trim == item.item ~ '=' ~ ceph_target_version
+  loop: '{{ ceph_installed_versions.results | default([]) }}'
+  when:
+  - enable_ceph_patch | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - ceph_patch_mode != 'report'
+  - not ansible_check_mode
+  - ceph_patch_mode == 'specific_version'
   tags:
   - ceph_patch

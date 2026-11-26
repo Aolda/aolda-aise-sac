@@ -1,4 +1,20 @@
 ---
+- name: kvm 패치 모드 및 유지보수 조건 확인
+  ansible.builtin.assert:
+    that:
+    - kvm_patch_mode in ['report', 'latest', 'specific_version']
+    - kvm_patch_mode != 'specific_version' or kvm_target_package_versions | length > 0
+    - kvm_patch_mode == 'report' or kvm_patch_maintenance_confirmed | bool
+    - kvm_patch_mode == 'report' or (ansible_play_batch | length == 1)
+    - kvm_patch_mode == 'report' or kvm_patch_precheck_commands | length > 0
+    - kvm_patch_mode == 'report' or kvm_patch_postcheck_commands | length > 0
+    fail_msg: 패치 모드, 명시적 유지보수, 단일 호스트 배치와 사전/사후 점검 명령이 필요합니다. security_only/point_release는 지원하지 않습니다.
+  when:
+  - enable_kvm_patch | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  tags:
+  - kvm_patch
 - name: KVM 패치 가능 버전 조회
   ansible.builtin.command:
     argv:
@@ -23,19 +39,51 @@
   when: enable_kvm_patch | bool or kvm_patch_mode == 'report'
   tags:
   - kvm_patch
+- name: kvm 유지보수 사전 점검 실행
+  ansible.builtin.command:
+    argv: '{{ item }}'
+  loop: '{{ kvm_patch_precheck_commands }}'
+  changed_when: false
+  check_mode: false
+  when: &id001
+  - enable_kvm_patch | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - kvm_patch_mode != 'report'
+  - not ansible_check_mode
+  tags:
+  - kvm_patch
+- name: KVM 패치 전 실행 가상머신 조회
+  ansible.builtin.command:
+    argv:
+    - virsh
+    - list
+    - --uuid
+  register: kvm_guests_before_patch
+  changed_when: false
+  check_mode: false
+  when: &id002
+  - enable_kvm_patch | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - kvm_patch_mode != 'report'
+  - not ansible_check_mode
+  tags:
+  - kvm_patch
 - name: KVM 보안 패치 적용
   ansible.builtin.apt:
     name: '{{ kvm_patch_packages }}'
     state: latest
     update_cache: true
     only_upgrade: true
+    cache_valid_time: 3600
   become: true
   register: kvm_security_patch_result
   when:
   - enable_kvm_patch | bool
   - security_action_mode == 'enforce'
-  - kvm_patch_mode in ['security_only', 'latest']
   - apply_policy | default(false) | bool
+  - kvm_patch_mode == 'latest'
   tags:
   - kvm_patch
 - name: KVM 특정 버전 패치 적용
@@ -44,6 +92,7 @@
     state: present
     update_cache: true
     allow_downgrade: '{{ kvm_allow_package_downgrade | bool }}'
+    cache_valid_time: 3600
   become: true
   loop: '{{ kvm_target_package_versions | dict2items }}'
   register: kvm_specific_patch_result
@@ -79,5 +128,65 @@
   - kvm_allow_reboot | bool
   - kvm_reboot_required.stat.exists | default(false)
   - apply_policy | default(false) | bool
+  - kvm_patch_mode != 'report'
+  - (kvm_security_patch_result.changed | default(false)) or (kvm_specific_patch_result.changed | default(false))
+  tags:
+  - kvm_patch
+- name: kvm 패치 후 운영 점검
+  ansible.builtin.command:
+    argv: '{{ item }}'
+  loop: '{{ kvm_patch_postcheck_commands }}'
+  changed_when: false
+  check_mode: false
+  when: *id001
+  tags:
+  - kvm_patch
+- name: kvm 적용 패키지 버전 재조회
+  ansible.builtin.command:
+    argv:
+    - dpkg-query
+    - -W
+    - -f=${Package}=${Version}\n
+    - '{{ item }}'
+  loop: '{{ kvm_patch_packages }}'
+  register: kvm_installed_versions
+  changed_when: false
+  check_mode: false
+  when: *id001
+  tags:
+  - kvm_patch
+- name: KVM 패치 후 실행 가상머신 조회
+  ansible.builtin.command:
+    argv:
+    - virsh
+    - list
+    - --uuid
+  register: kvm_guests_after_patch
+  changed_when: false
+  check_mode: false
+  when: *id002
+  tags:
+  - kvm_patch
+- name: KVM 패치 후 가상머신 보존 확인
+  ansible.builtin.assert:
+    that:
+    - kvm_guests_before_patch.stdout_lines | difference(kvm_guests_after_patch.stdout_lines) | length == 0
+    fail_msg: 패치 전 실행 중이던 가상머신이 누락되었습니다. 다음 호스트 작업을 중단합니다.
+  when: *id002
+  tags:
+  - kvm_patch
+- name: kvm 지정 버전 적용 검증
+  ansible.builtin.assert:
+    that:
+    - item.stdout | trim == item.item ~ '=' ~ kvm_target_package_versions[item.item]
+  loop: '{{ kvm_installed_versions.results | default([]) }}'
+  when:
+  - enable_kvm_patch | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - kvm_patch_mode != 'report'
+  - not ansible_check_mode
+  - kvm_patch_mode == 'specific_version'
+  - item.item in kvm_target_package_versions
   tags:
   - kvm_patch

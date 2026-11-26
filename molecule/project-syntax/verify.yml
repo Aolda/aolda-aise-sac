@@ -4,8 +4,12 @@
   connection: local
   gather_facts: false
   vars:
-    project_root: /home/subiin/projects/aolda-aise-sac
+    project_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | default(playbook_dir ~ '/../..', true) }}"
     syntax_check_commands:
+      - name: KVM and Ceph baseline
+        cmd: ansible-playbook --syntax-check playbooks/security_baseline.yml -i inventory/hosts.yml
+      - name: KVM account baseline
+        cmd: ansible-playbook --syntax-check playbooks/kvm_account_audit.yml -i inventory/hosts.yml
       - name: db-security role test playbook
         cmd: ansible-playbook --syntax-check roles/db-security/tests/test.yml -i roles/db-security/tests/inventory
       - name: docker-security role test playbook

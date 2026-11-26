@@ -16,8 +16,7 @@ fail() {
 
 reports_after() {
   local marker="$1"
-  find reports -maxdepth 1 -type f -name 'REPORT.*.md' -newer "$marker" \
-    -printf '%p\n' | sort
+  find reports -maxdepth 1 -type f -name 'REPORT.*.md' -newer "$marker" -print | sort
 }
 
 assert_contains() {

@@ -62,7 +62,7 @@ class OperationContracts(unittest.TestCase):
     def test_patch_modes_do_not_misrepresent_security_updates(self):
         for role in ["kvm-account-audit", "ceph-security-baseline"]:
             tasks = yaml.safe_load((ROOT / "roles" / role / "tasks/patch.yml").read_text())
-            gate = tasks[0]["ansible.builtin.assert"]["that"]
+            gate = next(t["ansible.builtin.assert"]["that"] for t in tasks if "패치 모드 및 유지보수 조건" in t["name"])
             self.assertIn("['report', 'latest', 'specific_version']", str(gate))
             self.assertIn("ansible_play_batch | length == 1", str(gate))
             self.assertIn("patch_precheck_commands | length > 0", str(gate))
@@ -84,7 +84,7 @@ class OperationContracts(unittest.TestCase):
     def test_platform_gate_requires_actual_distribution_and_layout(self):
         for role in ["kvm-account-audit", "ceph-security-baseline"]:
             tasks = yaml.safe_load((ROOT / "roles" / role / "tasks/preflight.yml").read_text())
-            expression = str(tasks[0]["ansible.builtin.set_fact"])
+            expression = str(next(t["ansible.builtin.set_fact"] for t in tasks if "실행 환경 판정" in t["name"]))
             self.assertIn("Ubuntu", expression)
             self.assertIn("24.04", expression)
             self.assertIn("host_packages", expression)

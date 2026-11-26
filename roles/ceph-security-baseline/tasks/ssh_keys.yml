@@ -1,4 +1,14 @@
 ---
+- name: ceph_ssh_keys 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_ssh_keys:
+        name: ceph_ssh_keys
+        status: '{{ ''unknown'' if (enable_ceph_ssh_key_check | bool) else ''not_run'' }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - ceph_ssh_keys
 - name: Ceph SSH 홈/그룹 조회 결과 초기화
   ansible.builtin.set_fact:
     ceph_ssh_user_homes: {}

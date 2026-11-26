@@ -1,4 +1,15 @@
 ---
+- name: ceph_selinux 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_selinux:
+        name: ceph_selinux
+        status: '{{ ''unknown'' if (enable_ceph_selinux | bool or ceph_selinux_report_avc | bool) else ''not_run''
+          }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - ceph_selinux
 - name: Ceph SELinux 상태 조회
   ansible.builtin.command:
     argv:

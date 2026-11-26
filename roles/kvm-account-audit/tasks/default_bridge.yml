@@ -1,84 +1,115 @@
 ---
+- name: kvm_default_bridge 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      kvm_default_bridge:
+        name: kvm_default_bridge
+        status: '{{ ''unknown'' if (enable_kvm_default_bridge_disable | bool) else ''not_run'' }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - kvm_default_bridge
 - name: KVM 전체 libvirt 네트워크 조회
   ansible.builtin.command:
-    argv: [virsh, net-list, --all, --name]
-  environment: {LC_ALL: C}
+    argv:
+    - virsh
+    - net-list
+    - --all
+    - --name
+  environment:
+    LC_ALL: C
   register: kvm_network_names
   check_mode: false
   changed_when: false
   when: enable_kvm_default_bridge_disable | bool
-  tags: [kvm_default_bridge]
-
+  tags:
+  - kvm_default_bridge
 - name: KVM 기본 네트워크 상태 조회
   ansible.builtin.command:
-    argv: [virsh, net-info, "{{ kvm_libvirt_default_network_name }}"]
-  environment: {LC_ALL: C}
+    argv:
+    - virsh
+    - net-info
+    - '{{ kvm_libvirt_default_network_name }}'
+  environment:
+    LC_ALL: C
   register: kvm_default_network_info
   check_mode: false
   changed_when: false
   when:
-    - enable_kvm_default_bridge_disable | bool
-    - kvm_libvirt_default_network_name in kvm_network_names.stdout_lines
-  tags: [kvm_default_bridge]
-
+  - enable_kvm_default_bridge_disable | bool
+  - kvm_libvirt_default_network_name in kvm_network_names.stdout_lines
+  tags:
+  - kvm_default_bridge
 - name: KVM 기본 네트워크 상태 구분
   ansible.builtin.set_fact:
-    kvm_network_exists: "{{ kvm_libvirt_default_network_name in (kvm_network_names.stdout_lines | default([])) }}"
-    kvm_network_active: "{{ (kvm_default_network_info.stdout | default('')) is search('Active: +yes') }}"
-    kvm_network_autostart: "{{ (kvm_default_network_info.stdout | default('')) is search('Autostart: +yes') }}"
+    kvm_network_exists: '{{ kvm_libvirt_default_network_name in (kvm_network_names.stdout_lines | default([])) }}'
+    kvm_network_active: '{{ (kvm_default_network_info.stdout | default('''')) is search(''Active: +yes'') }}'
+    kvm_network_autostart: '{{ (kvm_default_network_info.stdout | default('''')) is search(''Autostart: +yes'')
+      }}'
   when: enable_kvm_default_bridge_disable | bool
-  tags: [kvm_default_bridge]
-
+  tags:
+  - kvm_default_bridge
 - name: KVM 기본 네트워크 사용 중 삭제 방지
   ansible.builtin.assert:
     that:
-      - not (kvm_network_active | bool) or kvm_destroy_active_network | bool
+    - not (kvm_network_active | bool) or kvm_destroy_active_network | bool
     fail_msg: 활성 네트워크는 명시적 중지 허용 없이 정의를 삭제할 수 없습니다.
   when:
-    - enable_kvm_default_bridge_disable | bool
-    - apply_policy | default(false) | bool
-    - security_action_mode == 'enforce'
-    - kvm_default_bridge_action == 'undefine'
-    - kvm_undefine_default_network | bool
-  tags: [kvm_default_bridge]
-
+  - enable_kvm_default_bridge_disable | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - kvm_default_bridge_action == 'undefine'
+  - kvm_undefine_default_network | bool
+  tags:
+  - kvm_default_bridge
 - name: KVM 기본 네트워크 자동 시작 해제
   ansible.builtin.command:
-    argv: [virsh, net-autostart, "{{ kvm_libvirt_default_network_name }}", --disable]
+    argv:
+    - virsh
+    - net-autostart
+    - '{{ kvm_libvirt_default_network_name }}'
+    - --disable
   changed_when: true
   when:
-    - enable_kvm_default_bridge_disable | bool
-    - apply_policy | default(false) | bool
-    - security_action_mode == 'enforce'
-    - kvm_network_exists | bool
-    - kvm_network_autostart | bool
-    - kvm_disable_network_autostart | bool
-    - kvm_default_bridge_action in ['disable', 'destroy', 'undefine']
-  tags: [kvm_default_bridge]
-
+  - enable_kvm_default_bridge_disable | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - kvm_network_exists | bool
+  - kvm_network_autostart | bool
+  - kvm_disable_network_autostart | bool
+  - kvm_default_bridge_action in ['disable', 'destroy', 'undefine']
+  tags:
+  - kvm_default_bridge
 - name: KVM 기본 네트워크 중지
   ansible.builtin.command:
-    argv: [virsh, net-destroy, "{{ kvm_libvirt_default_network_name }}"]
+    argv:
+    - virsh
+    - net-destroy
+    - '{{ kvm_libvirt_default_network_name }}'
   changed_when: true
   when:
-    - enable_kvm_default_bridge_disable | bool
-    - apply_policy | default(false) | bool
-    - security_action_mode == 'enforce'
-    - kvm_network_exists | bool
-    - kvm_network_active | bool
-    - kvm_destroy_active_network | bool
-    - kvm_default_bridge_action in ['destroy', 'undefine']
-  tags: [kvm_default_bridge]
-
+  - enable_kvm_default_bridge_disable | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - kvm_network_exists | bool
+  - kvm_network_active | bool
+  - kvm_destroy_active_network | bool
+  - kvm_default_bridge_action in ['destroy', 'undefine']
+  tags:
+  - kvm_default_bridge
 - name: KVM 기본 네트워크 정의 삭제
   ansible.builtin.command:
-    argv: [virsh, net-undefine, "{{ kvm_libvirt_default_network_name }}"]
+    argv:
+    - virsh
+    - net-undefine
+    - '{{ kvm_libvirt_default_network_name }}'
   changed_when: true
   when:
-    - enable_kvm_default_bridge_disable | bool
-    - apply_policy | default(false) | bool
-    - security_action_mode == 'enforce'
-    - kvm_network_exists | bool
-    - kvm_undefine_default_network | bool
-    - kvm_default_bridge_action == 'undefine'
-  tags: [kvm_default_bridge]
+  - enable_kvm_default_bridge_disable | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  - kvm_network_exists | bool
+  - kvm_undefine_default_network | bool
+  - kvm_default_bridge_action == 'undefine'
+  tags:
+  - kvm_default_bridge

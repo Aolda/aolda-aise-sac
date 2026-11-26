@@ -1,4 +1,14 @@
 ---
+- name: ceph_config 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_config:
+        name: ceph_config
+        status: '{{ ''unknown'' if (enable_ceph_config_permission_check | bool) else ''not_run'' }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - ceph_config
 - name: Ceph config 파일 상태 조회
   ansible.builtin.stat:
     path: '{{ item }}'
@@ -10,7 +20,7 @@
 - name: Ceph config 민감정보 패턴 조회
   ansible.builtin.shell: "set -euo pipefail\nif [ ! -f {{ item | quote }} ]; then\n  echo absent\n  exit 0\nfi\n\
     if grep -Eiq {{ ceph_config_secret_patterns | join('|') | quote }} {{ item | quote }}; then\n  echo secret\n\
-    else\n  echo normal\nfi\n"
+    else\n  rc=$?\n  [ \"$rc\" -eq 1 ] || exit \"$rc\"\n  echo normal\nfi\n"
   args:
     executable: /bin/bash
   loop: '{{ ceph_config_files }}'
@@ -45,5 +55,37 @@
   - security_action_mode == 'enforce'
   - item.stdout != 'absent'
   - apply_policy | default(false) | bool
+  tags:
+  - ceph_config
+  register: ceph_config_applied
+- name: Ceph 설정 파일 목표 권한 초기화
+  ansible.builtin.set_fact:
+    ceph_config_expected: []
+  tags:
+  - ceph_config
+- name: Ceph 설정 파일 목표 권한 구성
+  ansible.builtin.set_fact:
+    ceph_config_expected: '{{ ceph_config_expected + [{''path'': item.item, ''owner'': ceph_config_owner, ''group'':
+      ceph_config_group, ''mode'': ceph_config_secret_mode if item.stdout == ''secret'' else ceph_config_default_mode}]
+      }}'
+  loop: '{{ ceph_config_secret_scan.results | default([]) }}'
+  when: enable_ceph_config_permission_check | bool
+  tags:
+  - ceph_config
+- name: Ceph 설정 파일 최종 권한 조회
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    get_checksum: false
+  loop: '{{ ceph_config_files }}'
+  register: ceph_config_final
+  when: enable_ceph_config_permission_check | bool
+  tags:
+  - ceph_config
+- name: Ceph 설정 파일 정책 근거 기록
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_config: '{{ ''Ceph 설정 파일 권한'' | security_file_assessment(ceph_config_final.results, ceph_config_expected,
+        (ceph_config_applied.changed | default(false)) and not ansible_check_mode) }}'
+  when: enable_ceph_config_permission_check | bool
   tags:
   - ceph_config

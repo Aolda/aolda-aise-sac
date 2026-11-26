@@ -1,4 +1,14 @@
 ---
+- name: kvm_log_backup 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      kvm_log_backup:
+        name: kvm_log_backup
+        status: '{{ ''unknown'' if (enable_kvm_log_backup | bool) else ''not_run'' }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - kvm_log_backup
 - name: KVM 기존 로그 교체 설정 중복 조회
   security_logrotate_info:
     own_config: '{{ kvm_logrotate_config_path }}'

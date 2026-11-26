@@ -1,4 +1,15 @@
 ---
+- name: ceph_auth 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_auth:
+        name: ceph_auth
+        status: '{{ ''unknown'' if (enable_cephx_enforcement | bool or ceph_auth_report_only | bool) else ''not_run''
+          }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - ceph_auth
 - name: CephX 목표값 구성
   ansible.builtin.set_fact:
     ceph_auth_targets:
@@ -121,5 +132,13 @@
     - item.stdout | trim == ceph_auth_targets[item.item]
   loop: '{{ ceph_auth_verified.results | default([]) }}'
   when: *id001
+  tags:
+  - ceph_auth
+- name: CephX 정책 근거 기록
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_auth: '{{ ceph_auth_current.results | security_auth_assessment(ceph_auth_verified.results | default([]),
+        ceph_auth_targets, (ceph_auth_set_result.changed | default(false)) and not ansible_check_mode) }}'
+  when: enable_cephx_enforcement | bool or ceph_auth_report_only | bool
   tags:
   - ceph_auth

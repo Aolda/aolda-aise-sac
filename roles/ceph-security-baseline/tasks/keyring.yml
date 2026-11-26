@@ -1,4 +1,14 @@
 ---
+- name: ceph_keyring 점검 근거 시작
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_keyring:
+        name: ceph_keyring
+        status: '{{ ''unknown'' if (enable_ceph_keyring_hardening | bool) else ''not_run'' }}'
+        observed: 최종 유효 상태의 자동 판정 근거 없음
+        expected: 기능별 정책 충족
+  tags:
+  - ceph_keyring
 - name: Ceph keyring 상태 조회
   ansible.builtin.stat:
     path: '{{ item.path }}'
@@ -30,5 +40,23 @@
   - not ceph_keyring_report_only | bool
   - security_action_mode == 'enforce'
   - apply_policy | default(false) | bool
+  tags:
+  - ceph_keyring
+  register: ceph_keyring_applied
+- name: Ceph keyring 최종 상태 조회
+  ansible.builtin.stat:
+    path: '{{ item.path }}'
+    get_checksum: false
+  loop: '{{ ceph_keyring_policy }}'
+  register: ceph_keyring_final
+  when: enable_ceph_keyring_hardening | bool
+  tags:
+  - ceph_keyring
+- name: Ceph keyring 정책 근거 기록
+  ansible.builtin.set_fact:
+    security_policy_evidence:
+      ceph_keyring: '{{ ''Ceph keyring 소유권·권한'' | security_file_assessment(ceph_keyring_final.results, ceph_keyring_policy,
+        (ceph_keyring_applied.changed | default(false)) and not ansible_check_mode) }}'
+  when: enable_ceph_keyring_hardening | bool
   tags:
   - ceph_keyring

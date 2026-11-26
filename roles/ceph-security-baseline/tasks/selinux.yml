@@ -53,6 +53,28 @@
   - apply_policy | default(false) | bool
   tags:
   - ceph_selinux
+- name: Ceph SELinux 실행 모드 조회
+  ansible.builtin.command:
+    argv:
+    - getenforce
+  register: ceph_selinux_current
+  changed_when: false
+  check_mode: false
+  when: enable_ceph_selinux | bool
+  tags:
+  - ceph_selinux
+- name: Ceph SELinux 비활성 환경 전환 방지
+  ansible.builtin.assert:
+    that:
+    - ceph_selinux_current.stdout | trim | lower in ['enforcing', 'permissive']
+    - ceph_selinux_state in ['enforcing', 'permissive']
+    fail_msg: SELinux 활성 환경의 상태 변경만 지원합니다. 최초 활성화는 별도 운영 절차가 필요합니다.
+  when:
+  - enable_ceph_selinux | bool
+  - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
+  tags:
+  - ceph_selinux
 - name: Ceph SELinux 상태 설정
   ansible.builtin.command:
     argv:
@@ -69,18 +91,18 @@
   - security_action_mode == 'enforce'
   - ceph_selinux_state in ['permissive', 'enforcing']
   - apply_policy | default(false) | bool
+  - ceph_selinux_current.stdout | trim | lower != ceph_selinux_state
   tags:
   - ceph_selinux
-- name: Ceph SELinux 재부팅
-  ansible.builtin.reboot:
-    msg: Reboot triggered by Ceph SELinux policy
-    reboot_timeout: 1800
-  become: true
+- name: Ceph SELinux 영구 모드 설정
+  ansible.builtin.lineinfile:
+    path: /etc/selinux/config
+    regexp: ^SELINUX=
+    line: SELINUX={{ ceph_selinux_state }}
+    backup: true
   when:
   - enable_ceph_selinux | bool
-  - ceph_selinux_allow_reboot | bool
-  - security_action_mode == 'enforce'
-  - ceph_selinux_state != 'disabled'
   - apply_policy | default(false) | bool
+  - security_action_mode == 'enforce'
   tags:
   - ceph_selinux

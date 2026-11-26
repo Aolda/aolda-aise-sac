@@ -37,21 +37,8 @@
   tags:
   - kvm_ip_restrict
 - name: KVM 관리망 SSH 허용
-  ansible.builtin.command:
-    argv:
-    - ufw
-    - allow
-    - from
-    - '{{ item.0 }}'
-    - to
-    - any
-    - port
-    - '{{ item.1.port | string }}'
-    - proto
-    - '{{ item.1.proto | default(''tcp'') }}'
   become: true
   register: kvm_ufw_allow_result
-  changed_when: '''Skipping adding existing rule'' not in kvm_ufw_allow_result.stdout'
   loop: '{{ (allowed_management_cidrs + emergency_access_cidrs) | product(allowed_service_ports) | list }}'
   when:
   - enable_kvm_ip_restrict | bool
@@ -61,16 +48,14 @@
   - apply_policy | default(false) | bool
   tags:
   - kvm_ip_restrict
+  community.general.ufw:
+    rule: allow
+    from_ip: '{{ item.0 }}'
+    to_port: '{{ item.1.port | string }}'
+    proto: '{{ item.1.proto | default(''tcp'') }}'
 - name: KVM ufw 기본 inbound 정책 적용
-  ansible.builtin.command:
-    argv:
-    - ufw
-    - default
-    - '{{ default_inbound_policy }}'
-    - incoming
   become: true
   register: kvm_ufw_default_result
-  changed_when: '''Default incoming policy changed'' in kvm_ufw_default_result.stdout'
   when:
   - enable_kvm_ip_restrict | bool
   - security_action_mode == 'enforce'
@@ -80,15 +65,12 @@
   - apply_policy | default(false) | bool
   tags:
   - kvm_ip_restrict
+  community.general.ufw:
+    direction: incoming
+    policy: '{{ default_inbound_policy }}'
 - name: KVM ufw 활성화
-  ansible.builtin.command:
-    argv:
-    - ufw
-    - --force
-    - enable
   become: true
   register: kvm_ufw_enable_result
-  changed_when: '''Firewall is active and enabled'' in kvm_ufw_enable_result.stdout'
   when:
   - enable_kvm_ip_restrict | bool
   - security_action_mode == 'enforce'
@@ -97,3 +79,5 @@
   - apply_policy | default(false) | bool
   tags:
   - kvm_ip_restrict
+  community.general.ufw:
+    state: enabled

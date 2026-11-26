@@ -43,7 +43,7 @@
     name: '{{ item.key }}={{ item.value }}'
     state: present
     update_cache: true
-    allow_downgrade: true
+    allow_downgrade: '{{ kvm_allow_package_downgrade | bool }}'
   become: true
   loop: '{{ kvm_target_package_versions | dict2items }}'
   register: kvm_specific_patch_result

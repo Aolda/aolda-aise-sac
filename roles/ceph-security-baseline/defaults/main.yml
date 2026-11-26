@@ -79,3 +79,5 @@ ceph_patch_packages:
 ceph_authorized_keys_replace_confirmed: false
 ceph_admin_allow_full_sudo: false
 ceph_authorized_keys_required: {}
+
+ceph_allow_package_downgrade: false

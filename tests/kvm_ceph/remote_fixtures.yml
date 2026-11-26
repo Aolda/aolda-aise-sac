@@ -1,0 +1,293 @@
+---
+- name: Isolated baseline verification on an explicitly selected Ubuntu test host
+  hosts: baseline_test
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  pre_tasks:
+  - name: 시험 대상 및 비파괴 범위 확인
+    ansible.builtin.assert:
+      that:
+      - baseline_test_confirmed | default(false) | bool
+      - ansible_facts.distribution == 'Ubuntu'
+      - ansible_facts.distribution_version == '24.04'
+      - not ansible_check_mode
+      fail_msg: 명시적으로 지정한 Ubuntu 24.04 시험 서버에서만 실행하십시오.
+  - name: 시험 임시 디렉터리 생성
+    ansible.builtin.tempfile:
+      state: directory
+      prefix: aise-kvm-ceph-
+    register: fixture
+  - name: 시험 네트워크 이름 생성
+    ansible.builtin.set_fact:
+      fixture_network: '{{ fixture.path | basename }}'
+      fixture_bridge: '{{ (''ait'' ~ (fixture.path | hash(''sha1''))[:8]) }}'
+  tasks:
+  - name: 실제 모듈과 격리 자원 검증
+    block:
+    - name: 시험용 인증 파일 준비
+      ansible.builtin.copy:
+        content: 'synthetic-test-data-only
+
+          '
+        dest: '{{ fixture.path }}/admin.keyring'
+        mode: '0644'
+    - name: keyring 첫 적용
+      ansible.builtin.include_role: &id001
+        name: ceph-security-baseline
+        tasks_from: keyring
+      vars: &id002
+        apply_policy: true
+        security_action_mode: enforce
+        ceph_keyring_report_only: false
+        ceph_keyring_policy:
+        - path: '{{ fixture.path }}/admin.keyring'
+          owner: root
+          group: root
+          mode: '0600'
+    - name: keyring 첫 변경 확인
+      ansible.builtin.assert:
+        that:
+        - ceph_keyring_applied.changed | bool
+    - name: keyring 재적용
+      ansible.builtin.include_role: *id001
+      vars: *id002
+    - name: keyring 재적용 변경 없음
+      ansible.builtin.assert:
+        that:
+        - not ceph_keyring_applied.changed | bool
+    - name: keyring 권한 변조 주입
+      ansible.builtin.file:
+        path: '{{ fixture.path }}/admin.keyring'
+        mode: '0644'
+    - name: keyring 권한 변조 복구
+      ansible.builtin.include_role: *id001
+      vars: *id002
+    - name: keyring 복구 확인
+      ansible.builtin.assert:
+        that:
+        - ceph_keyring_applied.changed | bool
+    - name: 시험용 개인키 디렉터리
+      ansible.builtin.file:
+        path: '{{ fixture.path }}/home/.ssh'
+        state: directory
+        mode: '0700'
+    - name: 시험용 개인키 준비
+      ansible.builtin.copy:
+        content: 'synthetic-test-data-only
+
+          '
+        dest: '{{ fixture.path }}/home/.ssh/id_fixture'
+        mode: '0644'
+    - name: 개인키 첫 권한 적용
+      ansible.builtin.include_role: &id003
+        name: ceph-security-baseline
+        tasks_from: private_keys
+      vars: &id004
+        apply_policy: true
+        security_action_mode: enforce
+        ceph_ssh_user_homes:
+          fixture: '{{ fixture.path }}/home'
+    - name: 개인키 권한 조회
+      ansible.builtin.stat:
+        path: '{{ fixture.path }}/home/.ssh/id_fixture'
+      register: private_first
+    - name: 개인키 0600 확인
+      ansible.builtin.assert:
+        that:
+        - private_first.stat.mode == '0600'
+    - name: 개인키 재적용
+      ansible.builtin.include_role: *id003
+      vars: *id004
+    - name: 개인키 최종 권한 조회
+      ansible.builtin.stat:
+        path: '{{ fixture.path }}/home/.ssh/id_fixture'
+      register: private_second
+    - name: 개인키 재적용 메타데이터 보존
+      ansible.builtin.assert:
+        that:
+        - private_first.stat.ctime == private_second.stat.ctime
+    - name: 독립 SSH 설정 준비
+      ansible.builtin.copy:
+        content: 'Include {{ fixture.path }}/policy.conf
+
+          HostKey /etc/ssh/ssh_host_ed25519_key
+
+          UsePAM no
+
+          '
+        dest: '{{ fixture.path }}/sshd_config'
+        mode: '0600'
+    - name: 독립 SSH 초기 정책
+      ansible.builtin.copy:
+        content: 'ClientAliveInterval 10
+
+          '
+        dest: '{{ fixture.path }}/policy.conf'
+        mode: '0644'
+    - name: 실제 sshd 점검 모드 무변경
+      security_sshd_dropin: &id005
+        path: '{{ fixture.path }}/policy.conf'
+        content: 'ClientAliveInterval 300
+
+          ClientAliveCountMax 2
+
+          '
+        expected: &id006
+          clientaliveinterval: 300
+          clientalivecountmax: 2
+        config_file: '{{ fixture.path }}/sshd_config'
+      check_mode: true
+      register: ssh_check
+    - name: SSH 점검 후 원본 조회
+      ansible.builtin.slurp:
+        src: '{{ fixture.path }}/policy.conf'
+      register: ssh_after_check
+    - name: SSH 점검 무변경 확인
+      ansible.builtin.assert:
+        that:
+        - ssh_after_check.content | b64decode == 'ClientAliveInterval 10\n'
+    - name: 실제 sshd 첫 적용 및 재적용
+      security_sshd_dropin: *id005
+      loop:
+      - first
+      - second
+      register: ssh_repeat
+    - name: SSH 재적용 변경 없음 확인
+      ansible.builtin.assert:
+        that:
+        - ssh_repeat.results[0].changed
+        - not ssh_repeat.results[1].changed
+    - name: 잘못된 SSH 구문 거부 시험
+      security_sshd_dropin:
+        path: '{{ fixture.path }}/policy.conf'
+        content: 'InvalidAiseSshDirective yes
+
+          '
+        expected: *id006
+        config_file: '{{ fixture.path }}/sshd_config'
+      register: ssh_rejected
+      ignore_errors: true
+    - name: SSH 거부 후 원본 조회
+      ansible.builtin.slurp:
+        src: '{{ fixture.path }}/policy.conf'
+      register: ssh_restored
+    - name: SSH 거부 및 원본 복구 확인
+      ansible.builtin.assert:
+        that:
+        - ssh_rejected is failed
+        - ssh_restored.content | b64decode == 'ClientAliveInterval 300\nClientAliveCountMax 2\n'
+    - name: 시험 로그 준비
+      ansible.builtin.copy:
+        content: 'synthetic log
+
+          '
+        dest: '{{ fixture.path }}/source.log'
+        mode: '0600'
+    - ansible.builtin.include_role: &id007
+        name: kvm-account-audit
+        tasks_from: log_snapshot
+      vars: &id008
+        apply_policy: true
+        security_action_mode: enforce
+        enable_kvm_log_backup: true
+        kvm_log_backup_enabled: true
+        kvm_log_backup_run: true
+        kvm_log_backup_id: same-operation
+        kvm_log_paths:
+        - '{{ fixture.path }}/source.log'
+        kvm_log_backup_dest: '{{ fixture.path }}/snapshots'
+      name: 로그 스냅샷 첫 실행
+    - name: 로그 첫 생성 확인
+      ansible.builtin.assert:
+        that:
+        - kvm_snapshot_result.changed
+    - ansible.builtin.include_role: *id007
+      vars: *id008
+      name: 로그 스냅샷 재실행
+    - name: 로그 중복 실행 방지 확인
+      ansible.builtin.assert:
+        that:
+        - not kvm_snapshot_result.changed
+    - name: 시험 네트워크 정의 준비
+      ansible.builtin.copy:
+        content: '<network><name>{{ fixture_network }}</name><bridge name="{{ fixture_bridge }}"/></network>
+
+          '
+        dest: '{{ fixture.path }}/network.xml'
+        mode: '0600'
+    - name: 격리된 비활성 네트워크 정의
+      ansible.builtin.command:
+        argv:
+        - virsh
+        - net-define
+        - '{{ fixture.path }}/network.xml'
+    - name: 시험 네트워크 자동 시작 표식 설정
+      ansible.builtin.command:
+        argv:
+        - virsh
+        - net-autostart
+        - '{{ fixture_network }}'
+    - name: 네트워크 자동 시작 첫 해제
+      ansible.builtin.include_role: &id009
+        name: kvm-account-audit
+        tasks_from: default_bridge
+      vars: &id010
+        apply_policy: true
+        security_action_mode: enforce
+        enable_kvm_default_bridge_disable: true
+        kvm_libvirt_default_network_name: '{{ fixture_network }}'
+        kvm_default_bridge_action: disable
+    - name: 네트워크 자동 시작 첫 변경 확인
+      ansible.builtin.assert:
+        that:
+        - kvm_network_autostart_change.changed
+    - name: 네트워크 자동 시작 재해제
+      ansible.builtin.include_role: *id009
+      vars: *id010
+    - name: 네트워크 재적용 변경 없음 확인
+      ansible.builtin.assert:
+        that:
+        - not (kvm_network_autostart_change.changed | default(false))
+    - name: 시험 네트워크 정의 삭제
+      ansible.builtin.include_role:
+        name: kvm-account-audit
+        tasks_from: default_bridge
+      vars:
+        apply_policy: true
+        security_action_mode: enforce
+        enable_kvm_default_bridge_disable: true
+        kvm_libvirt_default_network_name: '{{ fixture_network }}'
+        kvm_default_bridge_action: undefine
+        kvm_undefine_default_network: true
+    - name: 시험 네트워크 삭제 확인
+      ansible.builtin.command:
+        argv:
+        - virsh
+        - net-list
+        - --all
+        - --name
+      changed_when: false
+      register: final_networks
+    - name: 시험 네트워크 잔존 없음
+      ansible.builtin.assert:
+        that:
+        - fixture_network not in final_networks.stdout_lines
+    - name: 원격 시험 결과
+      ansible.builtin.debug:
+        msg: 'REMOTE_FIXTURE_TESTS_PASSED: keyring, private-key, ssh-check, ssh-convergence, ssh-rollback, snapshot,
+          libvirt-autostart, libvirt-undefine'
+    always:
+    - name: 시험 네트워크 정의 정리
+      ansible.builtin.command:
+        argv:
+        - virsh
+        - net-undefine
+        - '{{ fixture_network }}'
+      failed_when: false
+      changed_when: false
+    - name: 시험 임시 파일 정리
+      ansible.builtin.file:
+        path: '{{ fixture.path }}'
+        state: absent

@@ -82,8 +82,7 @@
 - name: KVM 계정 수동 조치 스크립트 배포
   ansible.builtin.template:
     src: apply_account_restrictions.j2
-    dest: '{{ kvm_account_manual_script_dir }}/apply_account_restrictions_{{ ansible_date_time.iso8601_basic_short
-      }}.sh'
+    dest: '{{ kvm_account_manual_script_dir }}/apply_account_restrictions.sh'
     owner: root
     group: root
     mode: '0750'

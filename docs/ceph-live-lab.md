@@ -37,6 +37,19 @@ ansible-playbook tests/kvm_ceph/ceph_live_policy.yml -i /absolute/test-inventory
   -e baseline_test_confirmed=true -e apply_policy=true -e security_action_mode=enforce --check
 ```
 
+설정 차이가 있는 상태의 명령줄 점검도 다음 순서로 재현할 수 있습니다. 마지막 실제 적용 명령으로 주입한 차이를 복구한 뒤 위의 전체 역할을 한 번 더 실행해 변경 0건을 확인합니다.
+
+```bash
+ansible-playbook tests/kvm_ceph/ceph_check_state.yml -i /absolute/test-inventory.ini \
+  -e baseline_test_confirmed=true -e ceph_check_operation=seed
+ansible-playbook tests/kvm_ceph/ceph_live_policy.yml -i /absolute/test-inventory.ini \
+  -e baseline_test_confirmed=true -e apply_policy=true -e security_action_mode=enforce --check
+ansible-playbook tests/kvm_ceph/ceph_check_state.yml -i /absolute/test-inventory.ini \
+  -e baseline_test_confirmed=true -e ceph_check_operation=verify
+ansible-playbook tests/kvm_ceph/ceph_live_policy.yml -i /absolute/test-inventory.ini \
+  -e baseline_test_confirmed=true -e apply_policy=true -e security_action_mode=enforce
+```
+
 각 시험은 저장된 시험 클러스터 식별자와 현재 `ceph fsid`를 비교합니다. 일반 운영 클러스터에 실행하지 마십시오. 전체 역할 시험에서는 계정·SSH·패치·SELinux 기능을 명시적으로 끕니다. 이 기능들의 실환경 시험 통과를 의미하지 않습니다.
 
 점검 모드는 실제 `--check`로 검증합니다. 작업 단위의 `check_mode: true`만 지정하는 방식은 `ansible_check_mode` 전역 변수와 같지 않아 적용 후 검증이 실행될 수 있습니다. 이 별도 호출 방식은 이번 지원/통과 범위가 아닙니다.
